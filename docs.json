@@ -43,7 +43,7 @@
     "primary": {
       "type": "button",
       "label": "Console",
-      "href": "https://console.thundercompute.com/"
+      "href": "https://app.thundercompute.com/"
     }
   },
   "footer": {
