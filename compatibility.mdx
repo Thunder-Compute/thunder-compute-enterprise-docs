@@ -1,0 +1,30 @@
+---
+title: "Compatibility"
+description: "Compatibility requirements, known limitations, and performance considerations."
+icon: "puzzle-piece"
+iconType: "solid"
+---
+
+<Note>
+  The subheadings on this page are placeholders for expanded compatibility documentation.
+</Note>
+
+## Compatibility
+
+- Any NVIDIA GPU and most data centers.
+- Recommended round-trip latency below 2ms.
+- Recommended throughput greater than 5Gbps.
+- No workload changes required.
+- Compatible with most CUDA applications.
+- Validated by 250,000+ GPU hours of customer workloads.
+- Common workloads are reliable and well-tested.
+- Untested workloads may occasionally be incompatible.
+- Observability supports diagnosis and regular fixes.
+
+## Performance
+
+- Application-dependent overhead, typically 0–20%.
+- Includes LLM inference and fine-tuning workloads.
+- Qwen3.5 27B text generation: approximately 10% tokens-per-second overhead.
+- Qwen3.5 4B fine-tuning: approximately 7% step-time overhead.
+- Performance complaints are rare in our cloud.

@@ -1,0 +1,74 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "palm",
+  "name": "Thunder Compute Enterprise",
+  "colors": {
+    "primary": "#4476a8",
+    "light": "#95c5ea",
+    "dark": "#4476a8"
+  },
+  "favicon": "/thunder_favicon.svg",
+  "navigation": {
+    "groups": [
+      {
+        "group": "Documentation",
+        "pages": ["overview", "installation", "architecture", "compatibility"]
+      }
+    ],
+    "global": {
+      "anchors": [
+        {
+          "anchor": "Support",
+          "href": "https://www.thundercompute.com/contact",
+          "icon": "message"
+        }
+      ]
+    }
+  },
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg",
+    "href": "https://www.thundercompute.com/cloud"
+  },
+  "appearance": {
+    "default": "dark"
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "Contact Us",
+        "href": "https://www.thundercompute.com/contact"
+      }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "Console",
+      "href": "https://console.thundercompute.com/"
+    }
+  },
+  "footer": {
+    "socials": {
+      "x": "https://twitter.com/thundercompute",
+      "linkedin": "https://www.linkedin.com/company/thundercompute/"
+    }
+  },
+  "fonts": {
+    "heading": {
+      "family": "Geist",
+      "weight": 600
+    },
+    "body": {
+      "family": "Geist"
+    }
+  },
+  "contextual": {
+    "options": ["copy", "view", "claude", "chatgpt"],
+    "display": "header"
+  },
+  "redirects": [
+    {
+      "source": "/",
+      "destination": "/overview"
+    }
+  ]
+}

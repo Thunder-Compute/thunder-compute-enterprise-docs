@@ -1,0 +1,30 @@
+---
+title: "Installation"
+description: "Deployment options and requirements for Thunder Compute Enterprise."
+icon: "download"
+iconType: "solid"
+---
+
+<Note>
+  These tabs and subheading are placeholders for the full installation instructions.
+</Note>
+
+<Tabs>
+  <Tab title="Kubernetes">
+    - Deployed through our Helm chart.
+    - Setup is typically managed end-to-end by Thunder Compute.
+  </Tab>
+
+  <Tab title="Normal">
+    - Installed directly as a systemd service.
+    - Setup is typically managed end-to-end by Thunder Compute.
+  </Tab>
+</Tabs>
+
+## Deployment requirements
+
+- Transparent to workloads and lightweight to deploy.
+- Supports bare metal or virtualized fleets.
+- Supports fleets across multiple data centers.
+- GPU access stays within the same data center due to latency requirements.
+- Requires at least 3 GPU servers per data center.

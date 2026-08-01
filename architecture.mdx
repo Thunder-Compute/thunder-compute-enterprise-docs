@@ -1,0 +1,29 @@
+---
+title: "Architecture"
+description: "A high-level view of Thunder Compute Enterprise components and GPU assignment."
+icon: "diagram-project"
+iconType: "solid"
+---
+
+<Note>
+  The diagram and subheadings on this page are placeholders for the full architecture documentation.
+</Note>
+
+## Architecture diagram
+
+```mermaid
+flowchart LR
+  workload[Client workload] --> enterprise[Thunder Compute Enterprise]
+  enterprise --> compute[GPU compute infrastructure]
+```
+
+## Components
+
+- A daemon on each physical server exposes its GPUs to workloads.
+- A small shim library enables GPU access in each VM or container.
+
+## GPU assignment
+
+- One physical GPU is allocated to one workload at a time.
+- The workload has exclusive access to the entire GPU.
+- Access ends when all processes using CUDA have exited.
