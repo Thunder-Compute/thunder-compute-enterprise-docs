@@ -8,19 +8,16 @@ iconType: "solid"
 
 Thunder Compute’s virtualization oversubscribes a cluster of GPUs by turning underutilization into available capacity. Today, a substantial portion of data center GPU capacity sits idle because GPUs remain allocated to specific workloads even when those workloads are not using them.
 
-Thunder Compute decouples GPUs from individual workloads, making idle GPU capacity available to other workloads within a data center. We can create additional revenue with this idle time by oversubscribing the data center based off of expected under-utilization the same way that an airline overbooks flights based off of expected no-shows. With GPUs, usage is highly predictable and utilization is low, often allowing oversubscription by 1.5x or more.
+Thunder Compute decouples GPUs from individual workloads, making idle GPU capacity available to other workloads within a data center. We can create additional revenue with this idle time by oversubscribing the data center based off of expected under-utilization. With GPUs, usage is highly predictable and utilization is low, often allowing oversubscription by 1.5x or more.
 
 <Frame caption="Fig. 1. More workloads are served by the same GPUs.">
-  <img
-    src="/images/gpu-oversubscription.png"
-    alt="Dedicated GPU allocation compared with Thunder Compute oversubscription"
-  />
+  ![Dedicated GPU allocation compared with Thunder Compute oversubscription](/images/gpu-oversubscription.png)
 </Frame>
 
-To enable this, we use a proprietary library to dynamically provide GPU access across a data center’s network fabric. When a workload tries to use an H100, the Thunder Compute software finds any idle H100 and forwards CUDA calls to that H100 over the network. Once the workload finishes using CUDA, that GPU can be reassigned elsewhere.
+To enable this, we use a proprietary library to dynamically provide GPU access across a data center’s network fabric. When a workload starts to use an H100, within 50-100ms the Thunder Compute software finds any idle H100 and establishes a peer-to-peer connection, forwarding CUDA calls to that GPU. Once the workload finishes using CUDA, that GPU can be reassigned elsewhere.
 
 ## Evidence from our own cloud
 
-We have extensively tested this virtualization software over the last two years In our first-party cloud offering. Here, we typically oversubscribe GPU capacity by 1.2-1.5x. Operators can adjust this ratio depending on utilization patterns, risk tolerance, and target SLA. A higher ratio creates more revenue, but increases the risk that workloads queue for GPU access. In fleets with large numbers of independent workloads, aggregate utilization is predictable enough to oversubscribe at high ratios while still hitting a conservative SLA.
+We have extensively tested this virtualization software over the last two years In our first-party cloud offering. There, we typically oversubscribe GPU capacity by 1.2-1.5x. In your environment you can adjust this ratio depending on utilization patterns, risk tolerance, and target SLA. A higher ratio creates more revenue, but increases the risk that workloads queue for GPU access. In fleets with large numbers of independent workloads, aggregate utilization is predictable enough to oversubscribe at high ratios while still hitting a conservative SLA.
 
-Over these two years, over 10,000 individual developers and small teams have used our cloud as their primary source of rented GPU compute.
+Over the past two years, over 10,000 individual developers and small teams have used our cloud as their primary source of rented GPU compute, where we use oversubscription to achieve class-leading gross margins. Now, you can license our software to gain this same advantage in your GPU fleet.

@@ -11,20 +11,21 @@ iconType: "solid"
 
 <Tabs>
   <Tab title="Kubernetes">
-    - Deployed through our Helm chart.
-    - Setup is typically managed end-to-end by Thunder Compute.
-  </Tab>
+    - Deployed through our Helm chart. See @architecture for details of components and what they do.
 
+    - Initial setup is typically managed end-to-end by the Thunder Compute team.
+  </Tab>
   <Tab title="Normal">
-    - Installed directly as a systemd service.
-    - Setup is typically managed end-to-end by Thunder Compute.
+    - Installed directly as a systemd service on every node. See @architecture for components and what they do.
+    - With our CLI, run "thunder up" to enroll a client or node on thunder compute. When terminating it, run "thunder down" to tear this down.
+
+    - Setup is typically managed end-to-end by the Thunder Compute team.
   </Tab>
 </Tabs>
 
 ## Deployment requirements
 
-- Transparent to workloads and lightweight to deploy.
 - Supports bare metal or virtualized fleets.
-- Supports fleets across multiple data centers.
+- Supports fleets across multiple data centers. we dynamically detect which workloads are in the same data center and restrict workloads to only use nearby GPUs to maximize performance
 - GPU access stays within the same data center due to latency requirements.
 - Requires at least 3 GPU servers per data center.
