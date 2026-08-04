@@ -11,15 +11,12 @@ GPU allocation and GPU utilization are different. A workload can hold a GPU for 
 Thunder Compute decouples workloads from individual GPU servers. More workloads can be admitted than there are physical GPUs because Thunder assigns an available, compatible GPU only when a workload needs one. This is **GPU oversubscription**.
 
 <Frame caption="Fig. 1. The same physical fleet serves more workloads.">
-  <img
-    src="/images/gpu-oversubscription.png"
-    alt="Dedicated GPU allocation compared with Thunder Compute oversubscription"
-  />
+  ![Dedicated GPU allocation compared with Thunder Compute oversubscription](/images/gpu-oversubscription.png)
 </Frame>
 
 ## How it works
 
-Thunder installs a lightweight library with each client workload and a managed service on each GPU host. When a workload begins using CUDA, Thunder selects available capacity on a compatible host in the same zone and forwards the required CUDA driver operations over the zone's network. The workload continues to use ordinary CUDA APIs and does not need to be recompiled for Thunder.
+Thunder installs a lightweight library with each client workload and a managed service on each GPU host. When a workload begins using CUDA, Thunder selects available capacity on a compatible host in the same zone, establishes the peer connection—typically within `50-100 ms`—and forwards the required CUDA driver operations over the zone's network. The workload continues to use ordinary CUDA APIs and does not need to be recompiled for Thunder.
 
 A physical GPU is assigned exclusively to one workload at a time. When every process in that workload has released its CUDA resources or exited, Thunder can make the GPU available to another workload.
 
@@ -43,6 +40,8 @@ The oversubscription ratio is the number of admitted workloads divided by the nu
 Higher ratios increase effective fleet capacity, but they also increase the chance that a workload must wait for a GPU. The appropriate ratio depends on workload concurrency, utilization patterns, network performance, and the service-level objective for the fleet.
 
 In Thunder Compute's first-party cloud, aggregate demand from independent workloads has typically supported ratios between `1.2x` and `1.5x`. Treat that range as operational experience, not a universal default: start conservatively, measure queueing and utilization, and adjust the ratio using your own workload data.
+
+Over the past two years, more than 10,000 individual developers and small teams have used that cloud as a primary source of rented GPU compute. This operating history is the basis for bringing the same capacity advantage to enterprise GPU fleets.
 
 ## Deployment model
 
