@@ -15,7 +15,7 @@ The published documentation includes:
 
 - Overview
 - Glossary
-- Host setup
+- Host and client setup
 
 Documentation images live in `/images` and are referenced from MDX with
 root-absolute paths such as `/images/gpu-oversubscription.png`.

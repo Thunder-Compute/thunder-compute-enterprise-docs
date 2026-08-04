@@ -1,0 +1,44 @@
+---
+title: "Authentication"
+icon: "key"
+description: "Organization API tokens, the claims they carry, and how they differ from enrollment tokens."
+---
+
+Thunder uses two kinds of credential, and they are not interchangeable.
+
+**Organization API tokens** authenticate a trusted controller — a scheduler,
+provisioning script, or similar — to Thunder's management API. They are
+long-lived, carry explicit claims, and must stay on the controller.
+
+**Enrollment tokens** are short-lived and single-use. A controller creates one
+per machine using an organization API token, then hands it to that machine so it
+can join the organization. Enrollment tokens carry no claims of their own.
+
+<Warning>
+  Never place an organization API token on a host, a client machine, or inside a
+  workload container. A machine only ever needs the enrollment token issued for
+  it.
+</Warning>
+
+## Claims
+
+Create organization API tokens in the console under **Authentication**, granting
+only the claims the controller actually needs. Claims are additive, and a token
+can hold any combination.
+
+| Claim | Name in console | Grants |
+| --- | --- | --- |
+| `client_enrollment_tokens:create` | Create client enrollment tokens | Create single-use enrollment tokens for clients. |
+| `server_enrollment_tokens:create` | Create server enrollment tokens | Create single-use enrollment tokens for GPU hosts. |
+| `clients:revoke` | Revoke clients | Permanently remove a client from the organization. |
+| `clients:read` | Read clients | List clients and read their status. |
+| `zones:create` | Create zones | Create new zones. |
+| `hosts:revoke` | Revoke hosts | Permanently remove a GPU host from the organization. |
+| `hosts:read` | Read hosts | List hosts and read their status. |
+| `zones:delete` | Delete zones | Delete existing zones. |
+
+The two enrollment claims are separate on purpose: a token that can enroll hosts
+cannot enroll clients, and vice versa. Grant each only where it is needed.
+
+Revocation is permanent. A revoked host or client cannot rejoin with its existing
+credential and must be enrolled again.

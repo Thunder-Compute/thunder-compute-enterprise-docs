@@ -15,7 +15,7 @@ If you have not created an account yet, visit [app.thundercompute.com](https://a
 
 Before setting up a host, open the **Zones** tab and create a zone or select an existing one. You will choose this zone when authorizing the host.
 
-You do not need to create an API token for the setup below. API tokens under **Authentication** are intended for management API automation and are not accepted by the host installer.
+You do not need to set `THUNDER_API_TOKEN` for the setup below. `THUNDER_API_TOKEN` is the management API credential used by trusted automation and is not accepted by the host installer.
 
 ## Network requirements
 
@@ -23,16 +23,16 @@ The GPU hosts need the following network access:
 
 ### Ingress
 
-| Port | Reason |
-| --- | --- |
-| `32000-32199` (TCP and UDP) | Communication between hosts in the same zone and client-facing GPU traffic. Scope this range to the host and client networks in the zone. |
+| Port | Protocol | Reason |
+| --- | --- | --- |
+| `32000-32199` | TCP and UDP | Communication between hosts in the same zone and client-facing GPU traffic. Scope this range to the host and client networks in the zone. |
 
 ### Egress
 
-| Port | Reason |
-| --- | --- |
-| `2096` (TCP) | Registration, heartbeat, check-in, and telemetry traffic to Thunder's control plane. |
-| `443` (TCP) | Downloading and updating the `thunderd`, `thunder`, and `libthunder` binaries from `get.thundercompute.com`. |
+| Port | Protocol | Reason |
+| --- | --- | --- |
+| `2096` | TCP | Registration, heartbeat, check-in, and telemetry traffic to Thunder's control plane. |
+| `443` | TCP | Downloading and updating the `thunderd`, `thunder`, and `libthunder` binaries from `get.thundercompute.com`. |
 
 ## Setup on the node
 
@@ -51,3 +51,21 @@ sudo thunder up
 The command prints an authorization URL. Open it in your browser, sign in to the dashboard, and choose the zone and IP address for the host.
 
 After authorization, `thunderd` manages the host and it should appear as active in the dashboard. Run `sudo thunder status` to check its health. If it reports an issue, follow the **Next** action in the output. Use `sudo thunder update` if the output reports missing or outdated binaries.
+
+## Decommissioning
+
+Move active workloads away from the host before removing Thunder. Then run the installed uninstaller:
+
+```bash
+sudo /usr/local/bin/uninstall-thunder.sh
+```
+
+The uninstaller stops `thunderd`, revokes its node credential, and removes the Thunder service, binaries, configuration, and runtime files from the host.
+
+To also revoke the host through the management API and remove it from active rosters, call the following with the host ID shown in the dashboard. This requires the **Revoke hosts** claim (`hosts:revoke`).
+
+```bash
+curl --fail-with-body -sS -X POST \
+  "https://api.thundercompute.com:2096/api/v1/hosts/<host_id>/revoke" \
+  -H "Authorization: Bearer $THUNDER_API_TOKEN"
+```
