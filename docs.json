@@ -12,11 +12,23 @@
     "groups": [
       {
         "group": "Get Started",
-        "pages": ["overview", "architecture", "glossary", "compatibility"]
+        "pages": [
+          "overview",
+          "glossary"
+        ]
+      },
+      {
+        "group": "Authentication",
+        "pages": [
+          "authentication"
+        ]
       },
       {
         "group": "Installation",
-        "pages": ["hosts"]
+        "pages": [
+          "hosts",
+          "clients"
+        ]
       }
     ],
     "global": {
@@ -66,7 +78,12 @@
     }
   },
   "contextual": {
-    "options": ["copy", "view", "claude", "chatgpt"],
+    "options": [
+      "copy",
+      "view",
+      "claude",
+      "chatgpt"
+    ],
     "display": "header"
   },
   "redirects": [

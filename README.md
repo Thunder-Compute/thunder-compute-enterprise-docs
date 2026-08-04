@@ -14,9 +14,8 @@ npx mintlify dev
 The published documentation includes:
 
 - Overview
-- Architecture and terminology
-- Host installation and verification
-- Compatibility and performance guidance
+- Glossary
+- Host and client setup
 
 Documentation images live in `/images` and are referenced from MDX with
 root-absolute paths such as `/images/gpu-oversubscription.png`.
