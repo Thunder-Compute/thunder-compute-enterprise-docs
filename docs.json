@@ -18,16 +18,16 @@
         ]
       },
       {
-        "group": "Authentication",
-        "pages": [
-          "authentication"
-        ]
-      },
-      {
         "group": "Installation",
         "pages": [
           "hosts",
           "clients"
+        ]
+      },
+      {
+        "group": "Authentication",
+        "pages": [
+          "authentication"
         ]
       }
     ],
