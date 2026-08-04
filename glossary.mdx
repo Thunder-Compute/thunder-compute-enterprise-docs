@@ -1,0 +1,44 @@
+---
+title: "Glossary"
+description: "Terms, components, and credentials used by Thunder Compute Enterprise."
+icon: "book"
+iconType: "solid"
+---
+
+## Capacity concepts
+
+| Term | Meaning |
+| --- | --- |
+| **Workload** | A training job, inference server, notebook, batch job, or other group of processes that uses CUDA. A workload is the unit that acquires and releases GPU capacity. |
+| **Allocation** | Reserving a GPU for a workload. An allocated GPU may still spend much of its time idle. |
+| **Utilization** | The share of time during which a GPU is executing work. |
+| **Oversubscription** | Admitting more workloads than there are physical GPUs, based on the expectation that they will not all require a GPU at the same instant. |
+| **Oversubscription ratio** | Admitted workloads divided by physical GPUs. Six workloads backed by four GPUs is a ratio of `1.5x`. |
+
+## Infrastructure
+
+| Term | Meaning |
+| --- | --- |
+| **Fleet** | All GPU hosts enrolled by an operator. A fleet can span multiple zones. |
+| **Zone** | A group of clients and hosts that are close enough on the network to share GPUs. A zone usually maps to one data center or network region. GPU data-plane traffic does not cross zone boundaries. |
+| **Host** | A physical Linux server that contributes NVIDIA GPUs to a zone. |
+| **Client** | A machine, VM, or container that runs workloads and borrows GPUs from hosts in its zone. |
+
+## Software components
+
+| Component | Meaning |
+| --- | --- |
+| **`thunder`** | The host administration CLI. It installs and starts the service, reports status, checks peer connectivity, updates binaries, and performs reauthorization. |
+| **`thunderd`** | The system service on each host. It enrolls the machine, participates in zone discovery, coordinates GPU availability, and supervises local components. |
+| **`hostd`** | The host-side service that accepts requests from `libthunder` and manages GPU-serving sessions. `thunderd` starts and monitors it. |
+| **`libthunder`** | The client-side library that presents CUDA to workloads and forwards supported CUDA driver operations to a host. |
+| **Control plane** | Thunder's management services for enrollment, credentials, rosters, heartbeats, updates, and telemetry. CUDA data-plane traffic remains inside the zone. |
+
+## Credentials
+
+| Credential | Meaning |
+| --- | --- |
+| **Management API token** | A `tcapi_...` secret used by scripts and services to call the management API. Its capabilities can create enrollment tokens, read inventory, or revoke resources. It is not accepted by the host installer. |
+| **Enrollment token** | A short-lived, single-use `tr_...` secret that enrolls one host or client into a zone. The installer redeems it for a node credential. |
+| **Node credential** | The credential stored locally after enrollment. `thunderd` or `libthunder` uses it to authenticate subsequent control-plane requests; operators do not normally handle it directly. |
+| **Interactive authorization** | A browser flow started by `sudo thunder up`. An administrator selects a zone and approves the host without first creating an enrollment token. |

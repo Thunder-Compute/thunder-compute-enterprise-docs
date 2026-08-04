@@ -11,12 +11,12 @@ npm install
 npx mintlify dev
 ```
 
-The documentation includes:
+The published documentation includes:
 
 - Overview
-- Installation for Kubernetes and normal deployments
-- Architecture and components
-- Compatibility and performance considerations
+- Architecture and terminology
+- Host installation and verification
+- Compatibility and performance guidance
 
 Documentation images live in `/images` and are referenced from MDX with
 root-absolute paths such as `/images/gpu-oversubscription.png`.

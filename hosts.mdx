@@ -1,0 +1,115 @@
+---
+title: "Set up a GPU host"
+sidebarTitle: "Hosts"
+description: "Enroll a GPU server, configure its network access, and verify that it is ready to serve workloads."
+icon: "server"
+iconType: "solid"
+---
+
+A **host** is a Linux server that contributes one or more NVIDIA GPUs to a Thunder zone. Each host runs `thunderd`, which enrolls the machine, coordinates with the other hosts in its zone, and manages the local GPU-serving processes.
+
+This guide uses a single-use enrollment token. You can also use the [interactive authorization flow](#interactive-authorization) when you are setting up a host by hand.
+
+## Prerequisites
+
+Before installing Thunder, confirm that the host has:
+
+- Linux on an `x86_64` processor.
+- `systemd` and root or `sudo` access.
+- An NVIDIA driver and at least one supported GPU. Run `nvidia-smi` to confirm that the driver can see the GPUs.
+- A stable IPv4 address that clients and other hosts in the zone can reach. Do not use `127.0.0.1`, a link-local address, or an address hidden behind NAT.
+- `curl`, `sha256sum`, `install`, and `sed` available in `PATH`.
+- The network access described below.
+
+You also need administrator access to your Thunder Compute organization. If you cannot access [the dashboard](https://app.thundercompute.com/) after being invited, contact [support@thundercompute.com](mailto:support@thundercompute.com).
+
+## Network requirements
+
+Thunder keeps GPU traffic inside a zone. Scope the inbound rules to client and host networks in that zone; do not expose the host port range to the public internet.
+
+### Inbound to each host
+
+| Source | Protocol | Port | Purpose |
+| --- | --- | --- | --- |
+| Hosts in the same zone | TCP and UDP | `32000-32199` | Host discovery, health, coordination, and peer APIs. |
+| Clients in the same zone | TCP | `32000-32199` | GPU session establishment and forwarded CUDA operations. |
+
+Thunder allocates services dynamically from this reserved range. Allow the complete range instead of assigning a permanent purpose to an individual port.
+
+### Outbound from each host
+
+| Destination | Protocol | Port | Purpose |
+| --- | --- | --- | --- |
+| `api.thundercompute.com` | TCP | `2096` | Enrollment, registration, roster updates, heartbeats, and check-ins. |
+| `telemetry.thundercompute.com` | TCP | `2096` | Customer telemetry export. |
+| `get.thundercompute.com` | TCP | `443` | Initial installation and binary updates. |
+
+The host must be able to resolve these names through DNS and establish TLS connections to them. If your organization uses a private control plane, use the hostnames and ports supplied by Thunder Compute instead.
+
+## Create an enrollment token
+
+1. Sign in to [the dashboard](https://app.thundercompute.com/).
+2. Open **Zones** and create a zone, or select the zone that should contain this host.
+3. Select **Create enrollment token**.
+4. Choose the **Server** role and an expiration time.
+5. Create the token and copy the secret beginning with `tr_`.
+
+<Warning>
+  An enrollment token is a single-use secret. Store and transmit it securely until the host redeems it. A management API token beginning with `tcapi_` cannot enroll a host and must not be passed to the installer.
+</Warning>
+
+## Install and enroll the host
+
+Connect to the host over SSH. Replace the two placeholders below, then run:
+
+```bash
+curl -fsSL https://get.thundercompute.com/install.sh | \
+  sudo THUNDER_ENROLLMENT_TOKEN=<tr_enrollment_token> \
+  THUNDERD_IP=<reachable_host_ip> \
+  sh
+```
+
+The installer verifies the downloaded binaries, writes the host configuration, installs the `thunder` and `thunderd` binaries, creates `thunderd.service`, redeems the enrollment token, and starts the service.
+
+Use an IP address that every host and client in the zone can route to. The address is advertised to the rest of the zone.
+
+## Verify the host
+
+Check the daemon and its dependencies:
+
+```bash
+sudo thunder status
+```
+
+A ready host reports an active service, an enrolled node, a ready GPU stack, and healthy components. Then check connectivity to the other hosts in the zone:
+
+```bash
+sudo thunder netcheck
+```
+
+The first host in a zone has no peers to test. After adding more hosts, run `netcheck` on each one and confirm that every peer is reachable. The host should also appear under **Zones → Server nodes** in the dashboard.
+
+## Interactive authorization
+
+For a manual installation, you can authorize the host in a browser instead of creating an enrollment token:
+
+```bash
+curl -fsSL https://get.thundercompute.com/install.sh | sudo sh
+sudo thunder up
+```
+
+`thunder up` prints an authorization URL. Open it, sign in to the dashboard, review the detected host IP, select a zone, and approve the request. The CLI waits for approval and then starts `thunderd.service`.
+
+This flow does not require a management API token.
+
+## Troubleshooting
+
+If setup does not complete:
+
+- Run `sudo thunder status` and follow the suggested next action.
+- Inspect recent service logs with `sudo journalctl -u thunderd.service -n 100 --no-pager`.
+- Run `sudo thunder netcheck` when hosts cannot discover or reach one another.
+- Confirm that the advertised host IP is stable, locally assigned, and reachable from the zone.
+- Recheck the complete `32000-32199` range in host firewalls, cloud security groups, and network ACLs.
+
+To retry browser authorization or replace rejected credentials, run `sudo thunder up` again. To install the current binaries later, run `sudo thunder update`.

@@ -1,29 +1,45 @@
 ---
 title: "Architecture"
-description: "A high-level view of Thunder Compute Enterprise components and GPU assignment."
+description: "How the control plane, clients, hosts, and GPU data plane fit together."
 icon: "diagram-project"
 iconType: "solid"
 ---
 
-<Note>
-  The diagram and subheadings on this page are placeholders for the full architecture documentation.
-</Note>
-
-## Architecture diagram
+Thunder Compute Enterprise separates management traffic from GPU traffic. The control plane enrolls machines and distributes zone membership; workload-to-GPU communication stays within the customer's zone.
 
 ```mermaid
 flowchart LR
-  workload[Client workload] --> enterprise[Thunder Compute Enterprise]
-  enterprise --> compute[GPU compute infrastructure]
+  control[Thunder control plane]
+  dashboard[Operator dashboard]
+  client[Client<br/>workload + libthunder]
+  daemon[GPU host<br/>thunderd + hostd]
+  gpu[Physical NVIDIA GPU]
+
+  dashboard --> control
+  client -. enrollment and roster .-> control
+  daemon -. enrollment, heartbeat, telemetry .-> control
+  client -->|CUDA operations inside the zone| daemon
+  daemon --> gpu
 ```
 
-## Components
+## Control plane
 
-- A daemon on each physical server exposes its GPUs to workloads.
-- A small shim library enables GPU access in each VM or container.
+The control plane maintains organizations, zones, enrollment credentials, host and client records, and the active host roster. Hosts periodically register and check in. The control plane does not sit in the CUDA data path.
+
+## Host
+
+Every GPU server runs `thunderd` as a systemd service. It maintains the host's zone membership, discovers peers, reports health, and supervises the host-side GPU services. `hostd` accepts client requests and owns the lifecycle of the GPU-serving sessions on that machine.
+
+## Client
+
+The client runs the workload together with `libthunder`. The library intercepts supported CUDA driver operations, discovers an assigned host, and forwards the operations over the zone network. Application source code does not need to know which physical server owns the GPU.
 
 ## GPU assignment
 
-- One physical GPU is allocated to one workload at a time.
-- The workload has exclusive access to the entire GPU.
-- Access ends when all processes using CUDA have exited.
+One physical GPU is assigned exclusively to one workload at a time. Thunder can admit more workloads than physical GPUs, but a workload may wait when all compatible GPUs are busy. After the workload releases its CUDA resources or exits, its GPU can return to the available pool.
+
+## Zone boundary
+
+Hosts exchange discovery and coordination traffic only with peers in their zone. Clients connect only to hosts in their zone. A fleet may contain several zones, but Thunder does not forward CUDA traffic between them.
+
+See the [glossary](/glossary) for component and credential definitions.

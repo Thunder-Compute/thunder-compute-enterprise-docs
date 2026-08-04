@@ -11,8 +11,12 @@
   "navigation": {
     "groups": [
       {
-        "group": "Documentation",
-        "pages": ["overview", "installation", "architecture", "compatibility"]
+        "group": "Get Started",
+        "pages": ["overview", "architecture", "glossary", "compatibility"]
+      },
+      {
+        "group": "Installation",
+        "pages": ["hosts"]
       }
     ],
     "global": {
@@ -69,6 +73,10 @@
     {
       "source": "/",
       "destination": "/overview"
+    },
+    {
+      "source": "/installation",
+      "destination": "/hosts"
     }
   ]
 }
