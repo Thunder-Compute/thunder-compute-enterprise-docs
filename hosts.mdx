@@ -81,13 +81,7 @@ Check the daemon and its dependencies:
 sudo thunder status
 ```
 
-A ready host reports an active service, an enrolled node, a ready GPU stack, and healthy components. Then check connectivity to the other hosts in the zone:
-
-```bash
-sudo thunder netcheck
-```
-
-The first host in a zone has no peers to test. After adding more hosts, run `netcheck` on each one and confirm that every peer is reachable. The host should also appear under **Zones → Server nodes** in the dashboard.
+A ready host reports an active service, an enrolled node, a ready GPU stack, and healthy components. The host should also appear under **Zones → Server nodes** in the dashboard.
 
 ## Interactive authorization
 
@@ -108,7 +102,6 @@ If setup does not complete:
 
 - Run `sudo thunder status` and follow the suggested next action.
 - Inspect recent service logs with `sudo journalctl -u thunderd.service -n 100 --no-pager`.
-- Run `sudo thunder netcheck` when hosts cannot discover or reach one another.
 - Confirm that the advertised host IP is stable, locally assigned, and reachable from the zone.
 - Recheck the complete `32000-32199` range in host firewalls, cloud security groups, and network ACLs.
 
