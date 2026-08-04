@@ -1,35 +1,25 @@
 ---
-title: "Setting up clients"
-description: "Enroll a client machine and install the Thunder client library."
+title: "Creating an instance"
+description: "Enroll an instance and install the Thunder client library."
 icon: "laptop"
 iconType: "solid"
 ---
 
 ## Getting started
 
-A client is a machine, VM, or container that runs CUDA workloads using GPUs from hosts in the same zone. The client does not need a local GPU.
+In Thunder, an instance is a client machine, VM, or container that runs CUDA workloads using GPUs from hosts in the same zone. It does not need a local GPU.
 
-The client installer currently requires Linux on an `x86_64` processor, root or `sudo` access, and `curl`, `sha256sum`, `install`, and `sed` available in `PATH`.
+Before continuing, review the [instance requirements](/requirements#instance-requirements), including the supported system and required network access.
 
 ## Dashboard
 
 Before setting up a client, open the **Zones** tab in [app.thundercompute.com](https://app.thundercompute.com/) and create a zone or select the zone that contains the GPU hosts this client should use. You will use this zone when creating the client's enrollment token.
 
-## Network requirements
-
-Clients do not require inbound ports for Thunder. They need the following outbound access:
-
-| Port | Protocol | Reason |
-| --- | --- | --- |
-| `2096` | TCP | Redeeming the enrollment token and discovering hosts through `api.thundercompute.com`. |
-| `32000-32199` | TCP | Connecting to GPU hosts in the same zone. |
-| `443` | TCP | Downloading `libthunder` and the uninstaller from `get.thundercompute.com`. |
-
 ## Setup on the client
 
 ### Create an enrollment token
 
-Every client needs its own enrollment token. Create it through the management API or the console — the rest of the setup is the same either way.
+Every client needs its own enrollment token. Create it through the management API or the console. The rest of the setup is the same either way.
 
 <Tabs>
   <Tab title="Automated">
@@ -57,7 +47,7 @@ Every client needs its own enrollment token. Create it through the management AP
 
     `--fail-with-body` prints the API's validation message when the request fails. The response from a successful request contains `enrollmentToken` and `enrollmentTokenId`. Pass only `enrollmentToken` to the client.
 
-    Save `enrollmentTokenId` with your client record — decommissioning the client later requires it.
+    Save `enrollmentTokenId` with your client record. Decommissioning the client later requires it.
   </Tab>
 
   <Tab title="Manual">

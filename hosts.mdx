@@ -1,5 +1,5 @@
 ---
-title: "Setting up hosts"
+title: "Creating a host"
 description: "Install and authorize Thunder Compute Enterprise on a GPU host."
 icon: "download"
 iconType: "solid"
@@ -9,30 +9,13 @@ iconType: "solid"
 
 Thunder's software runs on each GPU host and connects it to the other machines in its zone. The Thunder dashboard is used to manage zones and authorize new hosts.
 
-If you have not created an account yet, visit [app.thundercompute.com](https://app.thundercompute.com/) and log in. We do not offer self-service onboarding at the moment, so if you cannot access your organization after being invited, contact [support@thundercompute.com](mailto:support@thundercompute.com).
+Before continuing, review the [host requirements](/requirements#host-requirements), including the required network access.
 
 ## Dashboard
 
 Before setting up a host, open the **Zones** tab and create a zone or select an existing one. You will choose this zone when authorizing the host.
 
 You do not need to set `THUNDER_API_TOKEN` for the setup below. `THUNDER_API_TOKEN` is the management API credential used by trusted automation and is not accepted by the host installer.
-
-## Network requirements
-
-The GPU hosts need the following network access:
-
-### Ingress
-
-| Port | Protocol | Reason |
-| --- | --- | --- |
-| `32000-32199` | TCP and UDP | Communication between hosts in the same zone and client-facing GPU traffic. Scope this range to the host and client networks in the zone. |
-
-### Egress
-
-| Port | Protocol | Reason |
-| --- | --- | --- |
-| `2096` | TCP | Registration, heartbeat, check-in, and telemetry traffic to Thunder's control plane. |
-| `443` | TCP | Downloading and updating the `thunderd`, `thunder`, and `libthunder` binaries from `get.thundercompute.com`. |
 
 ## Setup on the node
 

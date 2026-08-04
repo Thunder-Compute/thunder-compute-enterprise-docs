@@ -20,6 +20,8 @@
       {
         "group": "Installation",
         "pages": [
+          "requirements",
+          "compatibility",
           "hosts",
           "clients"
         ]
