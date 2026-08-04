@@ -1,23 +1,50 @@
 ---
 title: "Oversubscribe your GPU fleet"
 sidebarTitle: "Overview"
-description: "Turn underutilization into available GPU capacity."
+description: "Turn predictable idle time into additional GPU capacity without changing application code."
 icon: "house"
 iconType: "solid"
 ---
 
-Thunder Compute’s virtualization oversubscribes a cluster of GPUs by turning underutilization into available capacity. Today, a substantial portion of data center GPU capacity sits idle because GPUs remain allocated to specific workloads even when those workloads are not using them.
+GPU allocation and GPU utilization are different. A workload can hold a GPU for hours while using it only intermittently, leaving valuable compute capacity unavailable to everything else.
 
-Thunder Compute decouples GPUs from individual workloads, making idle GPU capacity available to other workloads within a data center. We can create additional revenue with this idle time by oversubscribing the data center based off of expected under-utilization. With GPUs, usage is highly predictable and utilization is low, often allowing oversubscription by 1.5x or more.
+Thunder Compute decouples workloads from individual GPU servers. More workloads can be admitted than there are physical GPUs because Thunder assigns an available, compatible GPU only when a workload needs one. This is **GPU oversubscription**.
 
-<Frame caption="Fig. 1. More workloads are served by the same GPUs.">
+<Frame caption="Fig. 1. The same physical fleet serves more workloads.">
   ![Dedicated GPU allocation compared with Thunder Compute oversubscription](/images/gpu-oversubscription.png)
 </Frame>
 
-To enable this, we use a proprietary library to dynamically provide GPU access across a data center’s network fabric. When a workload starts to use an H100, within 50-100ms the Thunder Compute software finds any idle H100 and establishes a peer-to-peer connection, forwarding CUDA calls to that GPU. Once the workload finishes using CUDA, that GPU can be reassigned elsewhere.
+## How it works
 
-## Evidence from our own cloud
+Thunder installs a lightweight library with each client workload and a managed service on each GPU host. When a workload begins using CUDA, Thunder selects available capacity on a compatible host in the same zone, establishes the peer connection—typically within `50-100 ms`—and forwards the required CUDA driver operations over the zone's network. The workload continues to use ordinary CUDA APIs and does not need to be recompiled for Thunder.
 
-We have extensively tested this virtualization software over the last two years In our first-party cloud offering. There, we typically oversubscribe GPU capacity by 1.2-1.5x. In your environment you can adjust this ratio depending on utilization patterns, risk tolerance, and target SLA. A higher ratio creates more revenue, but increases the risk that workloads queue for GPU access. In fleets with large numbers of independent workloads, aggregate utilization is predictable enough to oversubscribe at high ratios while still hitting a conservative SLA.
+A physical GPU is assigned exclusively to one workload at a time. When every process in that workload has released its CUDA resources or exited, Thunder can make the GPU available to another workload.
 
-Over the past two years, over 10,000 individual developers and small teams have used our cloud as their primary source of rented GPU compute, where we use oversubscription to achieve class-leading gross margins. Now, you can license our software to gain this same advantage in your GPU fleet.
+<Frame caption="Fig. 2. Workloads are assigned to available GPUs dynamically.">
+  <img
+    className="block dark:hidden"
+    src="/images/thunder-virtualization-light.gif"
+    alt="Six workloads dynamically sharing a pool of four H100 GPUs"
+  />
+  <img
+    className="hidden dark:block"
+    src="/images/thunder-virtualization-dark.gif"
+    alt="Six workloads dynamically sharing a pool of four H100 GPUs"
+  />
+</Frame>
+
+## Choose an oversubscription ratio
+
+The oversubscription ratio is the number of admitted workloads divided by the number of physical GPUs. Six workloads backed by four GPUs is a ratio of `1.5x`.
+
+Higher ratios increase effective fleet capacity, but they also increase the chance that a workload must wait for a GPU. The appropriate ratio depends on workload concurrency, utilization patterns, network performance, and the service-level objective for the fleet.
+
+In Thunder Compute's first-party cloud, aggregate demand from independent workloads has typically supported ratios between `1.2x` and `1.5x`. Treat that range as operational experience, not a universal default: start conservatively, measure queueing and utilization, and adjust the ratio using your own workload data.
+
+Over the past two years, more than 10,000 individual developers and small teams have used that cloud as a primary source of rented GPU compute. This operating history is the basis for bringing the same capacity advantage to enterprise GPU fleets.
+
+## Deployment model
+
+A fleet can span multiple data centers or network regions. Thunder divides it into **zones**, and GPU data-plane traffic never crosses a zone boundary. Keeping clients and hosts close to one another limits latency and contains operational failures.
+
+Continue with the [glossary](/glossary) for the component model, or [set up a GPU host](/hosts).
