@@ -1,30 +1,18 @@
 ---
 title: "Compatibility"
-description: "Compatibility requirements, known limitations, and performance considerations."
+description: "Unsupported GPU features and infrastructure requirements for Thunder Compute Enterprise."
 icon: "puzzle-piece"
 iconType: "solid"
 ---
 
-<Note>
-  The subheadings on this page are placeholders for expanded compatibility documentation.
-</Note>
+Thunder supports CUDA compute workloads, but it does not expose every capability of a local NVIDIA GPU. Check the limitations and infrastructure requirements on this page before deploying it.
 
-## Compatibility
+## Unsupported features
 
-- Any NVIDIA GPU and most data centers.
-- Recommended round-trip latency below 2ms.
-- Recommended throughput greater than 5Gbps.
-- No workload changes required.
-- Compatible with most CUDA applications.
-- Validated by 250,000+ GPU hours of customer workloads.
-- Common workloads are reliable and well-tested.
-- Untested workloads may occasionally be incompatible.
-- Observability supports diagnosis and regular fixes.
-
-## Performance
-
-- Application-dependent overhead, typically 0–20%.
-- Includes LLM inference and fine-tuning workloads.
-- Qwen3.5 27B text generation: approximately 10% tokens-per-second overhead.
-- Qwen3.5 4B fine-tuning: approximately 7% step-time overhead.
-- Performance complaints are rare in our cloud.
+| Feature | Compatibility |
+| --- | --- |
+| Graphics and rendering | Vulkan, OpenGL, EGL, GLX, DirectX, and CUDA graphics interoperability are not supported. Thunder provides remote CUDA compute, not remote display or rendering. |
+| Video encode and decode | NVENC and NVDEC are not exposed. Hardware-accelerated FFmpeg options such as `-hwaccel cuda`, `h264_nvenc`, `hevc_nvenc`, and CUVID/NVDEC decoders do not work. Software encode and decode continues to work normally. |
+| MIG | Multi-Instance GPU partitioning is not supported. Hosts expose whole GPUs, while fleet-wide oversubscription provides sharing across workloads. |
+| CUDA checkpoint and restore | `cuda-checkpoint` and CRIU-based GPU checkpointing are not supported. Applications can still save and restore their own state, including model and optimizer checkpoints. |
+| System profilers | Nsight Systems (`nsys`) and Nsight Compute (`ncu`) are not supported. These tools require host-level tracing and access to GPU hardware counters. |
