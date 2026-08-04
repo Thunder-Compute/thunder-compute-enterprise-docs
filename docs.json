@@ -12,7 +12,7 @@
     "groups": [
       {
         "group": "Get Started",
-        "pages": ["overview", "architecture", "glossary", "compatibility"]
+        "pages": ["overview", "glossary"]
       },
       {
         "group": "Installation",

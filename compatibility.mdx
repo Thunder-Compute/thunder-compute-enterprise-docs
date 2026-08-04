@@ -1,41 +1,30 @@
 ---
-title: "Compatibility and performance"
-sidebarTitle: "Compatibility"
-description: "Host, workload, and network considerations for a Thunder deployment."
+title: "Compatibility"
+description: "Compatibility requirements, known limitations, and performance considerations."
 icon: "puzzle-piece"
 iconType: "solid"
 ---
 
-Thunder supports a broad range of NVIDIA GPUs and CUDA applications, but compatibility and performance depend on the complete combination of GPU model, driver, CUDA libraries, framework, and workload behavior. Validate representative workloads before choosing a production oversubscription ratio.
+<Note>
+  The subheadings on this page are placeholders for expanded compatibility documentation.
+</Note>
 
-## Host requirements
+## Compatibility
 
-- Linux on an `x86_64` processor.
-- `systemd` and root access for installation and service management.
-- A supported NVIDIA GPU and a functioning NVIDIA driver.
-- A stable, reachable IPv4 address.
-- The network access listed in [Set up a GPU host](/hosts#network-requirements).
+- Any NVIDIA GPU and most data centers.
+- Recommended round-trip latency below 2ms.
+- Recommended throughput greater than 5Gbps.
+- No workload changes required.
+- Compatible with most CUDA applications.
+- Validated by 250,000+ GPU hours of customer workloads.
+- Common workloads are reliable and well-tested.
+- Untested workloads may occasionally be incompatible.
+- Observability supports diagnosis and regular fixes.
 
-The dashboard lists the GPU models enabled for your organization. Contact Thunder Compute before onboarding a model that is not listed.
+## Performance
 
-## Workload compatibility
-
-Most dynamically linked CUDA applications can run without source changes or recompilation. Compatibility is not universal: applications that depend on unsupported CUDA driver behavior, unusual process lifecycles, or direct access to local GPU devices may require qualification.
-
-Test the actual framework versions, extensions, containers, and multi-process behavior that you intend to deploy. A small successful CUDA sample is not a substitute for exercising a representative training or inference workload.
-
-## Network guidance
-
-GPU operations travel between clients and hosts, so latency and throughput affect application performance. As an initial deployment target:
-
-- Keep round-trip latency below `2 ms`.
-- Provide at least `5 Gbit/s` of available throughput per active client.
-- Avoid packet inspection, NAT, or oversubscribed links in the zone data path.
-
-These are starting points rather than performance guarantees. Communication-heavy workloads may need substantially more bandwidth or lower latency.
-
-## Measure before rollout
-
-Performance overhead is application-dependent. Compare Thunder with a local-GPU baseline using the metric that matters to the workload—for example tokens per second, training step time, job completion time, or tail latency. Run long enough to include warm-up, steady-state execution, and realistic concurrency.
-
-Increase the oversubscription ratio gradually while monitoring both workload performance and time spent waiting for a compatible GPU.
+- Application-dependent overhead, typically 0–20%.
+- Includes LLM inference and fine-tuning workloads.
+- Qwen3.5 27B text generation: approximately 10% tokens-per-second overhead.
+- Qwen3.5 4B fine-tuning: approximately 7% step-time overhead.
+- Performance complaints are rare in our cloud.
