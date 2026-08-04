@@ -81,18 +81,15 @@ Run the installer on the client machine with the enrollment token from the previ
 
 ```bash
 curl -fsSL https://get.thundercompute.com/install.sh | \
-  sudo THUNDER_INSTALL_MODE=client \
+  sudo THUNDER_NOWARN=1 \
+  THUNDER_INSTALL_MODE=client \
   THUNDER_ENROLLMENT_TOKEN=$THUNDER_ENROLLMENT_TOKEN \
   sh
 ```
 
-Add `THUNDER_NOWARN=1` before `THUNDER_INSTALL_MODE` to accept the `/etc/ld.so.preload` change without prompting. Use it only when your automation has already approved that system-wide configuration.
+`THUNDER_NOWARN=1` skips interactive confirmation; omit it to confirm the preload change manually.
 
 The installer downloads and verifies `libthunder`, redeems the enrollment token, and writes the client credentials and GPU entitlement to `/etc/thunder/config.json`.
-
-<Warning>
-  By default, the installer asks for confirmation before adding `/etc/thunder/libthunder.so` to `/etc/ld.so.preload`. This loads the Thunder library into every new dynamically linked process on the client. Do not manually delete the library while it is listed in `/etc/ld.so.preload`.
-</Warning>
 
 The enrollment token is consumed during installation. If installation fails before the client is configured, create a new token before retrying.
 
