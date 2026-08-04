@@ -107,9 +107,9 @@ This flow does not require a management API token.
 If setup does not complete:
 
 - Run `sudo thunder status` and follow the suggested next action.
-- Inspect recent service logs with `sudo journalctl -u thunderd.service -n 100 --no-pager`.
-- Run `sudo thunder netcheck` when hosts cannot discover or reach one another.
 - Confirm that the advertised host IP is stable, locally assigned, and reachable from the zone.
 - Recheck the complete `32000-32199` range in host firewalls, cloud security groups, and network ACLs.
 
 To retry browser authorization or replace rejected credentials, run `sudo thunder up` again. To install the current binaries later, run `sudo thunder update`.
+
+If the thunder status is showing up as "unhealthy" when you run sudo thunder status, you can try re-installing the thunderd binary by running sudo thunder uninstall, and then starting off from the curl command.
