@@ -1,0 +1,385 @@
+---
+title: "Kubernetes Deployment"
+description: "Deploy Thunder Compute Enterprise in a Kubernetes Cluster."
+icon: "boxes"
+---
+
+We are releasing a public helm chart soon. This guide is designed to help with a full Kubernetes deployment.
+
+## Architecture
+
+![Thunder Device Plugin Kubernetes Architecture](/images/thunder-device-plugin-helm.png)
+
+There are 2 main components in the Kubernetes Architecture: the Operator and the Daemonset.
+
+**1. Operator**
+- Publishes the latest `ResourceSlices` based on per zone live GPU capacity and usage stats from the Thunder Compute API
+
+**2. Daemonset**
+- Sets up Thunder Virtualization on a node
+- Monitors health of the node'
+- Creates `client.thundercompute.com` resources, `Secrets`, and `ConfigMaps` for each `ResourceClaim`
+- Implements CDI injections for container-based consumers
+- Ensures reliable teardown and freeing of vGPU resources when a pod/VM is being cleaned
+
+The architecture relies on 2 major abstractions provided by Kubernetes - 
+[Dynamic Resource Allocation (DRA)](https://kubernetes.io/docs/concepts/scheduling-eviction/dynamic-resource-allocation/) and
+[Container Device Interface (CDI)](https://docs.docker.com/build/building/cdi/).
+
+### 1. Dynamic Resource Allocation (DRA)
+
+This provides the following Kubernetes resources:
+- `DeviceClass` - a category of device; used to expose the actual vGPU
+- `ResourceSlice` - a collection of devices available in the cluster; this is used to publish total vGPU capacity per zone per GPU type
+- `ResourceClaim` - a concrete realization of a `ResourceClaimTemplate`, attached to a consumer; represents claimed vGPUs in use
+- `ResourceClaimTemplate` - a request for a given quantity of a resource; used by pods to acquire a certain number of a vGPU model
+
+### 2. Container Device Interface (CDI)
+- Provides access to `containerEdits`, giving the ability to modify envs, devices, mounts, etc a container is exposed to.
+- Thunder CDI is used by pods to mount in NVIDIA libraries and executables, env variables, hooks.
+
+## Kubernetes Setup
+
+Thunder uses Kubernetes Dynamic Resource Allocation (DRA) consumable capacity.
+Enable `DRAConsumableCapacity` on the API server, scheduler,
+controller-manager, and every kubelet before installing the chart.
+
+Kubernetes does not provide a cluster-scoped `kubectl` switch for feature gates.
+For a generic self-managed Kubernetes cluster, add this feature gate to each
+component's startup flags or component config:
+
+```text
+--feature-gates=DRAConsumableCapacity=true
+```
+
+Managed Kubernetes offerings may not expose these component flags. If the
+cluster provider does not allow DRA feature gates to be enabled on both the
+control plane and kubelets, use a self-managed cluster or a provider-supported
+Kubernetes version where the required DRA behavior is already available.
+
+RKE2 server config at `/etc/rancher/rke2/config.yaml`:
+
+```yaml
+kube-apiserver-arg:
+  - "feature-gates=DRAConsumableCapacity=true"
+kube-scheduler-arg:
+  - "feature-gates=DRAConsumableCapacity=true"
+kube-controller-manager-arg:
+  - "feature-gates=DRAConsumableCapacity=true"
+```
+
+RKE2 worker config at `/etc/rancher/rke2/config.yaml`:
+
+```yaml
+kubelet-arg:
+  - "feature-gates=DRAConsumableCapacity=true"
+```
+
+Restart RKE2:
+
+```bash
+sudo systemctl restart rke2-server
+sudo systemctl restart rke2-agent
+```
+
+Verify the API server preserves DRA capacity requests. This confirms the API
+server is configured correctly; the scheduler and kubelets still need the same
+feature gate in their component configuration:
+
+```bash
+kubectl apply --dry-run=server -o yaml -f - <<'EOF'
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaimTemplate
+metadata:
+  name: thunder-capacity-field-check
+  namespace: default
+spec:
+  spec:
+    devices:
+      requests:
+        - name: gpu
+          exactly:
+            deviceClassName: thunder-vgpu
+            allocationMode: ExactCount
+            count: 1
+            selectors:
+              - cel:
+                  expression: device.attributes["vgpu.thundercompute.com"]["gpu_type"] == "A6000"
+            capacity:
+              requests:
+                vgpu.thundercompute.com/gpu_count: "1"
+EOF
+```
+
+Verify Thunder slices use shared consumable capacity:
+
+```bash
+kubectl get resourceslices -l app.kubernetes.io/name=thunder-dra-driver -o yaml \
+  | grep -A12 allowMultipleAllocations
+```
+
+## KubeVirt Setup
+
+Integrating with KubeVirt requires `GPUsWithDRA` to be enabled, since VMs
+are created with `ResourceClaims`, a DRA construct. This feature may be
+gated in default KubeVirt charts.
+
+Enable the feature gate without removing any existing KubeVirt feature gates.
+
+```bash
+feature_gates="$(kubectl -n kubevirt get kubevirt kubevirt -o json \
+  | jq -c '(.spec.configuration.developerConfiguration.featureGates // []) as $gates | if $gates | index("GPUsWithDRA") then $gates else $gates + ["GPUsWithDRA"] end')"
+
+kubectl -n kubevirt patch kubevirt kubevirt \
+  --type merge \
+  -p "{\"spec\":{\"configuration\":{\"developerConfiguration\":{\"featureGates\":${feature_gates}}}}}"
+```
+
+Verify the feature gate:
+
+```bash
+kubectl -n kubevirt get kubevirt kubevirt \
+  -o jsonpath='{.spec.configuration.developerConfiguration.featureGates}{"\n"}'
+```
+
+Expected output includes:
+
+```text
+["GPUsWithDRA"]
+```
+
+## Node Labels Setup
+
+The daemonset schedules only onto Thunder GPU nodes. Each eligible node needs a
+zone, an externally reachable IP label, and the Thunder node labels expected by
+the chart.
+
+The `external-ip` specified must be reachable within the zone it is in.
+All nodes and clients running in that zone must be able to communicate with this IP address.
+
+Required labels:
+
+```bash
+kubectl label node <node-name> thundercompute.com/node=true
+kubectl label node <node-name> topology.kubernetes.io/zone=<zone-name>
+kubectl label node <node-name> thundercompute.com/external-ip=<node-ip>
+kubectl label node <node-name> nvidia.com/gpu.present=true
+```
+
+Verify node labels:
+
+```bash
+kubectl get nodes --show-labels | grep thundercompute.com/node
+```
+
+## Chart Deployment
+
+Install or upgrade the chart with a Kubernetes Secret containing the Thunder API
+configuration. The API token must have the Thunder API read, create, and delete capabilities for
+zones, nodes, clients, and enrollment tokens.
+
+Create the namespace and secret:
+
+```bash
+export THUNDER_API_TOKEN='<token>'
+
+kubectl create namespace thunder-system \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl -n thunder-system create secret generic thunder-api \
+  --from-literal=THUNDER_API_TOKEN="${THUNDER_API_TOKEN}" \
+  --from-literal=THUNDER_API_URL="https://api.thundercompute.com:2096" \
+  --dry-run=client -o yaml | kubectl apply -f -
+```
+
+Apply the current CRDs before installing or upgrading the chart. Helm installs
+CRDs on first install, but does not upgrade files in `crds/` during normal chart
+upgrades.
+
+```bash
+kubectl apply -f charts/thunder-device-plugin/crds/
+```
+
+Install or upgrade the chart:
+
+```bash
+helm upgrade --install thunder-device-plugin charts/thunder-device-plugin \
+  --namespace thunder-system \
+  --set namespace.create=false \
+  --set namespace.name=thunder-system \
+  --set thunder.existingSecret=thunder-api
+```
+
+Verify rollout:
+
+```bash
+kubectl -n thunder-system rollout status deployment/thunder-device-plugin-operator
+kubectl -n thunder-system rollout status daemonset/thunder-device-plugin
+kubectl get deviceclasses thunder-vgpu
+kubectl get resourceslices -l app.kubernetes.io/name=thunder-dra-driver
+```
+
+## Pod Requests
+
+Pods should use `ResourceClaimTemplate`. Kubernetes creates a concrete claim for
+each pod and deletes it with the pod. The container requests the claim through
+`resources.claims`, and the daemon returns a claim-scoped CDI device during
+prepare.
+
+Pod request example:
+
+```yaml
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaimTemplate
+metadata:
+  name: thunder-pod-gpu
+spec:
+  spec:
+    devices:
+      requests:
+        - name: gpu
+          exactly:
+            deviceClassName: thunder-vgpu
+            allocationMode: ExactCount
+            count: 1
+            selectors:
+              - cel:
+                  expression: device.attributes["vgpu.thundercompute.com"]["gpu_type"] == "A6000"
+            capacity:
+              requests:
+                vgpu.thundercompute.com/gpu_count: "1"
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: thunder-pod-gpu
+spec:
+  restartPolicy: Never
+  resourceClaims:
+    - name: vgpu
+      resourceClaimTemplateName: thunder-pod-gpu
+  containers:
+    - name: tester
+      image: ubuntu:24.04
+      command: ["bash", "-lc", "nvidia-smi && sleep 3600"]
+      resources:
+        claims:
+          - name: vgpu
+            request: gpu
+```
+
+Apply and inspect:
+
+```bash
+kubectl apply -f pod.yaml
+kubectl get pod thunder-pod-gpu
+kubectl get resourceclaims
+```
+
+## VM Requests
+
+VMs should use a stable `ResourceClaim`, not `ResourceClaimTemplate`. The stable
+claim name lets the VM mount the daemon-created guest ConfigMap and Secret:
+
+```text
+<resourceclaim-name>-thunder-configmap
+<resourceclaim-name>-thunder-secret
+```
+
+Create the VM claim:
+
+```yaml
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaim
+metadata:
+  name: thunder-vm-claim
+spec:
+  devices:
+    requests:
+      - name: gpu
+        exactly:
+          deviceClassName: thunder-vgpu
+          allocationMode: ExactCount
+          count: 1
+          selectors:
+            - cel:
+                expression: device.attributes["vgpu.thundercompute.com"]["gpu_type"] == "A6000"
+          capacity:
+            requests:
+              vgpu.thundercompute.com/gpu_count: "1"
+```
+
+Reference the claim from the VM and mount the Thunder guest artifacts with
+virtiofs:
+
+```yaml
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  name: thunder-vm
+spec:
+  running: true
+  template:
+    spec:
+      resourceClaims:
+        - name: vgpu
+          resourceClaimName: thunder-vm-claim
+      domain:
+        resources:
+          requests:
+            memory: 1Gi
+        devices:
+          filesystems:
+            - name: thunder-config
+              virtiofs: {}
+            - name: thunder-secret
+              virtiofs: {}
+          disks:
+            - name: cloudinitdisk
+              disk:
+                bus: virtio
+      volumes:
+        - name: thunder-config
+          configMap:
+            name: thunder-vm-claim-thunder-configmap
+            optional: true
+        - name: thunder-secret
+          secret:
+            secretName: thunder-vm-claim-thunder-secret
+            optional: true
+        - name: cloudinitdisk
+          cloudInitNoCloud:
+            userData: |
+              #cloud-config
+              mounts:
+                - [ thunder-config, /mnt/thunder-config, virtiofs ]
+                - [ thunder-secret, /mnt/thunder-secret, virtiofs ]
+              runcmd:
+                - [ bash, /mnt/thunder-config/install-thunder-client.sh ]
+```
+
+Use the test chart for a complete VM with root disk and networking:
+
+```bash
+helm install thunder-vm charts/tests/vm \
+  --set gpu.type=A6000 \
+  --set gpu.count=1
+```
+
+Inspect the VM and its generated Thunder artifacts:
+
+```bash
+kubectl get vm,vmi,pod -l app.kubernetes.io/instance=thunder-vm
+kubectl get resourceclaim thunder-vm-thunder-vgpu-test-vm-claim -o yaml
+kubectl get cm,secret | grep thunder-vm-thunder-vgpu-test-vm-claim
+```
+
+## ResourceClaim vs ResourceClaimTemplate
+
+Use `ResourceClaimTemplate` for pods when Kubernetes should generate and own one
+claim per pod. Use `ResourceClaim` for VMs when the claim name must be known
+before scheduling.
+
+A standalone `ResourceClaim` is safe for VMs: it is not bound to a
+`ResourceSlice`, pool, zone, or node until the scheduler processes the consuming
+virt-launcher pod.
