@@ -20,7 +20,7 @@
       {
         "group": "Installation",
         "pages": [
-          "hosts",
+          "servers",
           "clients"
         ]
       },
@@ -28,8 +28,8 @@
         "group": "Other",
         "pages": [
           "authentication",
-          "glossary",
-          "compatibility"
+          "compatibility",
+          "glossary"
         ]
       }
     ],
@@ -95,7 +95,11 @@
     },
     {
       "source": "/installation",
-      "destination": "/hosts"
+      "destination": "/servers"
+    },
+    {
+      "source": "/hosts",
+      "destination": "/servers"
     }
   ]
 }

@@ -1,19 +1,19 @@
 ---
-title: "Creating an instance"
-description: "Enroll an instance and install the Thunder client library."
+title: "Enrolling a client"
+description: "Enroll a client and install the Thunder client library."
 icon: "laptop"
 iconType: "solid"
 ---
 
 ## Getting started
 
-In Thunder, an instance is a client machine, VM, or container that runs CUDA workloads using GPUs from hosts in the same zone. It does not need a local GPU.
+In Thunder, a client is a machine, VM, or container that runs CUDA workloads using GPUs from servers in the same zone. It does not need a local GPU.
 
-Before continuing, review the [instance requirements](/requirements#instance-requirements), including the supported system and required network access.
+Before continuing, review the [client requirements](/requirements#client-requirements), including the supported system and required network access.
 
 ## Dashboard
 
-Before setting up a client, open the **Zones** tab in [app.thundercompute.com](https://app.thundercompute.com/) and create a zone or select the zone that contains the GPU hosts this client should use. You will use this zone when creating the client's enrollment token.
+Before setting up a client, open the **Zones** tab in [app.thundercompute.com](https://app.thundercompute.com/) and create a zone or select the zone that contains the GPU servers this client should use. You will use this zone when creating the client's enrollment token.
 
 ## Setup on the client
 
@@ -47,7 +47,7 @@ Every client needs its own enrollment token. Create it through the management AP
 
     `--fail-with-body` prints the API's validation message when the request fails. The response from a successful request contains `enrollmentToken` and `enrollmentTokenId`. Pass only `enrollmentToken` to the client.
 
-    Save `enrollmentTokenId` with your client record. Decommissioning the client later requires it.
+    Save `enrollmentTokenId` with your client record. Uninstalling the client later requires it.
   </Tab>
 
   <Tab title="Manual">
@@ -67,21 +67,28 @@ The enrollment token begins with `tr_`, is shown once, and can enroll only one c
 
 ### Install on the client
 
-Run the installer on the client machine with the enrollment token from the previous step:
+<Tabs>
+  <Tab title="Installer">
+    Run the installer on the client machine with the enrollment token from the previous step:
 
-```bash
-curl -fsSL https://get.thundercompute.com/install.sh | \
-  sudo THUNDER_NOWARN=1 \
-  THUNDER_INSTALL_MODE=client \
-  THUNDER_ENROLLMENT_TOKEN=$THUNDER_ENROLLMENT_TOKEN \
-  sh
-```
+    ```bash
+    curl -fsSL https://get.thundercompute.com/install.sh | \
+      sudo THUNDER_NOWARN=1 \
+      THUNDER_INSTALL_MODE=client \
+      THUNDER_ENROLLMENT_TOKEN=$THUNDER_ENROLLMENT_TOKEN \
+      sh
+    ```
 
-`THUNDER_NOWARN=1` skips interactive confirmation; omit it to confirm the installation manually.
+    `THUNDER_NOWARN=1` skips interactive confirmation; omit it to confirm the installation manually.
 
-The installer downloads and verifies `libthunder`, redeems the enrollment token, and writes the client credentials and GPU entitlement to `/etc/thunder/config.json`.
+    The installer downloads and verifies `libthunder`, redeems the enrollment token, and writes the client credentials and GPU entitlement to `/etc/thunder/config.json`.
 
-The enrollment token is consumed during installation. If installation fails before the client is configured, create a new token before retrying.
+    The enrollment token is consumed during installation. If installation fails before the client is configured, create a new token before retrying.
+  </Tab>
+  <Tab title="Helm (Coming soon)">
+    Helm chart installation is coming soon.
+  </Tab>
+</Tabs>
 
 ### Verify
 
@@ -95,7 +102,7 @@ nvidia-smi
 
 The command should show the GPUs assigned to the client. You can then run a representative CUDA workload to confirm that it can use the expected GPU type and count.
 
-## Decommissioning
+## Uninstalling
 
 Remove Thunder from the client with the installed uninstaller, so that it removes the preload entry before deleting the library:
 

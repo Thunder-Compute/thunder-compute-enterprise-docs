@@ -1,29 +1,29 @@
 ---
 title: "Requirements"
-description: "System and network requirements for Thunder hosts and instances."
+description: "System and network requirements for Thunder servers and clients."
 icon: "list-check"
 iconType: "solid"
 ---
 
-Review these requirements before creating a host or instance.
+Review these requirements before creating a server or client.
 
 For CUDA feature support and known limitations, also review [Compatibility](/compatibility).
 
-## Host
+## Server
 
 | Area | Requirement |
 | --- | --- |
-| Placement and performance | Must be in the same zone as its instances. For best performance, use a network with round-trip latency below `2 ms` and throughput above `5 Gbps`. |
+| Placement and performance | Must be in the same zone as its clients. For best performance, use a network with round-trip latency below `2 ms` and throughput above `5 Gbps`. |
 | System | NVIDIA GPU; NVIDIA driver 610 or newer (Thunder pins `610.43.02`); root or `sudo` access; `curl` in `PATH`. |
 | CUDA memory | Mapped, pinned, and managed memory (`cudaHostAlloc`, `cudaHostRegister`, `cudaMallocManaged`, and Driver API equivalents) requires the Thunder-patched NVIDIA kernel module. Without it, only these allocation types fail. |
-| Ingress | `32000-32199` over TCP and UDP for same-zone host communication and instance-facing GPU traffic. Scope access to the zone's host and instance networks. |
+| Ingress | `32000-32199` over TCP and UDP for same-zone server communication and client-facing GPU traffic. Scope access to the zone's server and client networks. |
 | Egress | `2096` over TCP for control-plane registration, heartbeat, check-in, and telemetry; `443` over TCP to download and update `thunderd`, `thunder`, and `libthunder` from `get.thundercompute.com`. |
 
-## Instance
+## Client
 
 | Area | Requirement |
 | --- | --- |
-| Placement and performance | Must be in the same zone as its hosts. For best performance, use a network with round-trip latency below `2 ms` and throughput above `5 Gbps`. |
+| Placement and performance | Must be in the same zone as its servers. For best performance, use a network with round-trip latency below `2 ms` and throughput above `5 Gbps`. |
 | System | Linux on `x86_64`; root or `sudo` access; `curl`, `sha256sum`, `install`, and `sed` in `PATH`. No local NVIDIA driver or GPU is required. |
 | Ingress | None required by Thunder. |
-| Egress | `2096` over TCP to redeem the enrollment token and discover hosts through `api.thundercompute.com`; `32000-32199` over TCP to connect to same-zone GPU hosts; `443` over TCP to download `libthunder` and the uninstaller from `get.thundercompute.com`. |
+| Egress | `2096` over TCP to redeem the enrollment token and discover servers through `api.thundercompute.com`; `32000-32199` over TCP to connect to same-zone GPU servers; `443` over TCP to download `libthunder` and the uninstaller from `get.thundercompute.com`. |
