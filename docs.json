@@ -14,22 +14,22 @@
         "group": "Get Started",
         "pages": [
           "overview",
-          "glossary"
+          "requirements"
         ]
       },
       {
         "group": "Installation",
         "pages": [
-          "requirements",
-          "compatibility",
           "hosts",
           "clients"
         ]
       },
       {
-        "group": "Authentication",
+        "group": "Other",
         "pages": [
-          "authentication"
+          "authentication",
+          "glossary",
+          "compatibility"
         ]
       }
     ],
