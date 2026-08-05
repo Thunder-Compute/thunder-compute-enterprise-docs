@@ -1,11 +1,11 @@
 ---
 title: "Requirements"
-description: "Account, system, and network requirements for Thunder hosts and instances."
+description: "Account, system, and network requirements for Thunder servers and clients."
 icon: "list-check"
 iconType: "solid"
 ---
 
-Review these requirements before creating a host or instance.
+Review these requirements before creating a server or client.
 
 For CUDA feature support and known limitations, also review [Compatibility](/compatibility).
 
@@ -13,41 +13,41 @@ For CUDA feature support and known limitations, also review [Compatibility](/com
 
 You need access to your organization in the [Thunder dashboard](https://app.thundercompute.com/). Thunder Compute Enterprise does not currently offer self-service onboarding. If you cannot access your organization after being invited, contact [support@thundercompute.com](mailto:support@thundercompute.com).
 
-Create a zone or select an existing one from the **Zones** tab. Hosts and instances must belong to the same zone to communicate with each other.
+Create a zone or select an existing one from the **Zones** tab. Servers and clients must belong to the same zone to communicate with each other.
 
 ## Network performance recommendations
 
-For best performance between hosts and instances in a zone, use a network with:
+For best performance between servers and clients in a zone, use a network with:
 
 - Round-trip latency below `2 ms`
 - Throughput above `5 Gbps`
 
-## Host requirements
+## Server requirements
 
-A host is a machine with an NVIDIA GPU that provides GPU capacity to instances in its zone.
+A server is a machine with an NVIDIA GPU that provides GPU capacity to clients in its zone.
 
 ### System requirements
 
-The host must have:
+The server must have:
 
 - An NVIDIA GPU
 - NVIDIA driver 610 or newer. Thunder currently pins version `610.43.02`.
 - Root or `sudo` access
 - `curl` available in `PATH`
 
-Mapped, pinned, and managed memory requires a Thunder-patched NVIDIA kernel module on each host. This includes `cudaHostAlloc`, `cudaHostRegister`, `cudaMallocManaged`, and the equivalent CUDA Driver API calls.
+Mapped, pinned, and managed memory requires a Thunder-patched NVIDIA kernel module on each server. This includes `cudaHostAlloc`, `cudaHostRegister`, `cudaMallocManaged`, and the equivalent CUDA Driver API calls.
 
 Other allocation types work without the patched module. If the module is unavailable, only mapped, pinned, and managed memory allocations fail.
 
 ### Network requirements
 
-Configure the following access before installing Thunder on a host.
+Configure the following access before installing Thunder on a server.
 
 #### Ingress
 
 | Port | Protocol | Reason |
 | --- | --- | --- |
-| `32000-32199` | TCP and UDP | Communication between hosts in the same zone and instance-facing GPU traffic. Scope this range to the host and instance networks in the zone. |
+| `32000-32199` | TCP and UDP | Communication between servers in the same zone and client-facing GPU traffic. Scope this range to the server and client networks in the zone. |
 
 #### Egress
 
@@ -56,32 +56,32 @@ Configure the following access before installing Thunder on a host.
 | `2096` | TCP | Registration, heartbeat, check-in, and telemetry traffic to Thunder's control plane. |
 | `443` | TCP | Downloading and updating the `thunderd`, `thunder`, and `libthunder` binaries from `get.thundercompute.com`. |
 
-## Instance requirements
+## Client requirements
 
-An instance is a machine, VM, or container that runs CUDA workloads using GPUs from hosts in the same zone. It does not need a local GPU.
+A client is a machine, VM, or container that runs CUDA workloads using GPUs from servers in the same zone. It does not need a local GPU.
 
 ### System requirements
 
-The instance installer requires:
+The client installer requires:
 
 - Linux on an `x86_64` processor
 - Root or `sudo` access
 - `curl`, `sha256sum`, `install`, and `sed` available in `PATH`
 
-Instances do not need a local NVIDIA driver or a local GPU.
+Clients do not need a local NVIDIA driver or a local GPU.
 
 ### Network requirements
 
-Configure the following access before installing Thunder on an instance.
+Configure the following access before installing Thunder on a client.
 
 #### Ingress
 
-Instances do not require inbound ports for Thunder.
+Clients do not require inbound ports for Thunder.
 
 #### Egress
 
 | Port | Protocol | Reason |
 | --- | --- | --- |
-| `2096` | TCP | Redeeming the enrollment token and discovering hosts through `api.thundercompute.com`. |
-| `32000-32199` | TCP | Connecting to GPU hosts in the same zone. |
+| `2096` | TCP | Redeeming the enrollment token and discovering servers through `api.thundercompute.com`. |
+| `32000-32199` | TCP | Connecting to GPU servers in the same zone. |
 | `443` | TCP | Downloading `libthunder` and the uninstaller from `get.thundercompute.com`. |

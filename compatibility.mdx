@@ -13,6 +13,6 @@ Thunder supports CUDA compute workloads, but it does not expose every capability
 | --- | --- |
 | Graphics and rendering | Vulkan, OpenGL, EGL, GLX, DirectX, and CUDA graphics interoperability are not supported. Thunder provides remote CUDA compute, not remote display or rendering. |
 | Video encode and decode | NVENC and NVDEC are not exposed. Hardware-accelerated FFmpeg options such as `-hwaccel cuda`, `h264_nvenc`, `hevc_nvenc`, and CUVID/NVDEC decoders do not work. Software encode and decode continues to work normally. |
-| MIG | Multi-Instance GPU partitioning is not supported. Hosts expose whole GPUs, while fleet-wide oversubscription provides sharing across workloads. |
+| MIG | Multi-Instance GPU partitioning is not supported. Servers expose whole GPUs, while fleet-wide oversubscription provides sharing across workloads. |
 | CUDA checkpoint and restore | `cuda-checkpoint` and CRIU-based GPU checkpointing are not supported. Applications can still save and restore their own state, including model and optimizer checkpoints. |
-| System profilers | Nsight Systems (`nsys`) and Nsight Compute (`ncu`) are not supported. These tools require host-level tracing and access to GPU hardware counters. |
+| System profilers | Nsight Systems (`nsys`) and Nsight Compute (`ncu`) are not supported. These tools require server-level tracing and access to GPU hardware counters. |

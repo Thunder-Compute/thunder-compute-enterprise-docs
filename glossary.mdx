@@ -22,5 +22,5 @@ This page defines the vocabulary used across these docs and in the tooling itsel
 | --- | --- |
 | **Fleet** | All the GPU servers an operator has enrolled with Thunder. A fleet may span multiple data centers, but a given workload is only ever matched to a GPU inside its own zone. |
 | **Zone** | A group of machines close enough on the network to share GPUs with each other—in practice, a data center or network region. GPU access never crosses a zone boundary. |
-| **Host** | A physical server that has GPUs and contributes them to the pool. Hosts run `thunderd`. |
-| **Client** | A machine, VM, or container that runs workloads and is connected to hosts through the network. Clients run `libthunder` and borrow GPUs from hosts over the network. |
+| **Server** | A physical server that has GPUs and contributes them to the pool. Servers run `thunderd`. |
+| **Client** | A machine, VM, or container that runs workloads and is connected to servers through the network. Clients run `libthunder` and borrow GPUs from servers over the network. |

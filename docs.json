@@ -22,7 +22,7 @@
         "pages": [
           "requirements",
           "compatibility",
-          "hosts",
+          "servers",
           "clients"
         ]
       },
@@ -95,7 +95,11 @@
     },
     {
       "source": "/installation",
-      "destination": "/hosts"
+      "destination": "/servers"
+    },
+    {
+      "source": "/hosts",
+      "destination": "/servers"
     }
   ]
 }
