@@ -15,7 +15,7 @@ For CUDA feature support and known limitations, also review [Compatibility](/com
 | --- | --- |
 | Placement and performance | Must be in the same zone as its clients. For best performance, use a network with round-trip latency below `2 ms` and throughput above `5 Gbps`. |
 | System | NVIDIA GPU; NVIDIA driver 610 or newer (Thunder pins `610.43.02`); root or `sudo` access; `curl` in `PATH`. |
-| CUDA memory | Mapped, pinned, and managed memory (`cudaHostAlloc`, `cudaHostRegister`, `cudaMallocManaged`, and Driver API equivalents) requires the Thunder-patched NVIDIA kernel module. Without it, only these allocation types fail. |
+| CUDA memory | Mapped, pinned, and managed memory (`cudaHostAlloc`, `cudaHostRegister`, `cudaMallocManaged`, and Driver API equivalents) requires the Thunder-patched NVIDIA kernel module. Without it, only these allocation types fail. See [NVIDIA driver setup](/nvidia-driver) to install it. |
 | Ingress | `32000-32199` over TCP and UDP for same-zone server communication and client-facing GPU traffic. Scope access to the zone's server and client networks. |
 | Egress | `2096` over TCP for control-plane registration, heartbeat, check-in, and telemetry; `443` over TCP to download and update `thunderd`, `thunder`, and `libthunder` from `get.thundercompute.com`. |
 

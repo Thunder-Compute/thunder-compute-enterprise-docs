@@ -1,0 +1,64 @@
+---
+title: "NVIDIA driver setup"
+description: "Install the pinned NVIDIA driver and the Thunder-patched kernel module on a GPU server."
+icon: "microchip"
+iconType: "solid"
+---
+
+Thunder servers run the NVIDIA open GPU driver pinned by Thunder, plus a patched build of the NVIDIA kernel module. The patch is what lets mapped, pinned, and managed memory (`cudaHostAlloc`, `cudaHostRegister`, `cudaMallocManaged`, and the Driver API equivalents) work across the virtualization boundary.
+
+Without the patched module a server still runs normally and all other CUDA workloads are unaffected, but workloads using those allocation types fail on that server.
+
+## Install
+
+Run the installer on each GPU server. It is published alongside the other Thunder artifacts on `get.thundercompute.com`.
+
+```bash
+curl -fsSL https://get.thundercompute.com/install-driver.sh | sudo sh
+```
+
+<Warning>
+  The installer replaces the NVIDIA driver packages and unloads the NVIDIA kernel modules. Drain the server and stop every process holding `/dev/nvidia*` first.
+</Warning>
+
+The installer supports Debian and Ubuntu on `x86_64`, and it:
+
+| Step | Detail |
+| --- | --- |
+| Configures NVIDIA's CUDA repository | Installs the `cuda-keyring` package for the distribution if the pinned driver is not already available. |
+| Installs the pinned driver | Removes other NVIDIA driver branches, then installs the version-specific pinning package and `nvidia-driver-open`. |
+| Installs the patched kernel module | Downloads `thunder-nvidia-dkms-open`, verifies its checksum, installs it through DKMS, and holds the package so `apt full-upgrade` cannot replace it. |
+| Reloads and verifies | Reloads the NVIDIA modules, regenerates the NVIDIA CDI specification when the server runs containers, and confirms the patched module is live. |
+
+## Verify
+
+The installer fails loudly if either check below does not pass, so run these only when auditing a server:
+
+```bash
+nvidia-smi --query-gpu=driver_version --format=csv,noheader
+cat /sys/module/nvidia_uvm/parameters/uvm_thunder_patch_version
+```
+
+The first command reports the pinned driver version and the second prints the patch version. If the second file does not exist, the server is running the stock kernel module.
+
+## Options
+
+| Flag | Environment variable | Effect |
+| --- | --- | --- |
+| | `THUNDER_NOWARN=1` | Skips the confirmation prompt, for unattended installs. |
+| `--no-reload` | `THUNDER_DRIVER_NO_RELOAD=1` | Leaves the running modules alone; reboot to load the patched module. |
+| `--skip-driver` | | Keeps the installed NVIDIA driver and only installs the patched kernel module. |
+
+## Updating
+
+Rerun the installer. It releases the package hold, upgrades the driver and the patched module together, reloads the modules, and reapplies the hold. The userspace driver, the patched kernel module, and the CDI specification must always agree; a mismatch either prevents the modules from loading or silently falls back to the stock kernel module.
+
+Kernel upgrades need no action. DKMS rebuilds the patched module for the new kernel, provided `dkms` and the matching kernel headers stay installed.
+
+## Troubleshooting
+
+| Symptom | Cause and fix |
+| --- | --- |
+| `modprobe` reports `Key was rejected by service` | Secure Boot rejects unsigned DKMS modules. Enroll a signing key for DKMS in the server's MOK database, or disable Secure Boot. |
+| The patch version file is missing after installing | The stock module is loaded. Check `dkms status` for a failed build against the running kernel, then rerun the installer. |
+| The installer reports processes holding `/dev/nvidia*` | Workloads are still running. Drain the server, or rerun with `--no-reload` and reboot. |
