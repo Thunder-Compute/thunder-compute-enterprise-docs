@@ -1,0 +1,77 @@
+---
+title: "Resilience"
+description: "How a zone behaves when it loses connectivity to Central, when no GPU is free, and when a client or server disappears."
+icon: "shield-halved"
+iconType: "solid"
+---
+
+Thunder is designed so that a zone keeps serving the workloads it already knows
+about, even when it cannot reach anything outside the data center. This page
+describes the behavior you should expect in the cases operators ask about most.
+
+## Losing the WAN link
+
+Central handles enrollment, rosters, and telemetry, but it is not in the path of
+a CUDA call and it is not consulted per assignment. See
+[Architecture](/architecture).
+
+If a zone loses connectivity to `api.thundercompute.com`:
+
+| Capability | Behavior during the outage |
+| --- | --- |
+| Running workloads | Unaffected. CUDA traffic stays between the client and the server in the zone. |
+| New GPU assignments | Continue. The manager runs in-zone and authorizes assignments against its cached roster of active clients, which it persists to disk so a restart mid-outage does not lock clients out. |
+| Server discovery | Continues. Clients hold a cached roster of `thunderd` peers and use it before contacting Central. |
+| Reconnecting to the last server | Continues. A client with a valid cached host assignment reconnects to that server without contacting the manager at all. |
+| Enrolling new servers or clients | Blocked. Enrollment tokens are issued and redeemed through Central. |
+| Revoking a server or client | Delayed. The revocation is applied when the zone reaches Central again. |
+| Telemetry and dashboard state | Delayed. The dashboard shows the zone as last seen until the link returns. |
+
+The manager refreshes its client roster from Central about once a minute, and
+retries every few seconds while Central is unreachable, so the zone picks up
+revocations and newly enrolled clients shortly after the link is restored.
+
+<Warning>
+  Because the cached roster is authoritative during an outage, a client revoked
+  while the link is down keeps its access until the zone can reach Central again.
+  Treat revocation as eventually consistent, not instantaneous.
+</Warning>
+
+One case does not survive an outage: a manager that has never obtained a roster,
+from Central or from its on-disk cache, cannot authorize anyone. That only
+applies to a brand new zone brought up while Central is already unreachable.
+
+## No GPUs available
+
+Oversubscription means a zone can be fully committed at a given moment. When a
+client asks for a GPU and none is free, the request is not failed. The client
+waits and retries every 10 seconds until capacity appears, then continues.
+
+From the workload's point of view, the CUDA call that triggered the connection
+blocks. Nothing is returned to the application as an error, so a job does not
+crash because the fleet was busy.
+
+The client stays quiet for the first 10 seconds of waiting, then reports:
+
+```text
+All GPUs are currently busy. Retrying...
+```
+
+After a minute it also prints when the wait started and how to shorten it. In
+non-interactive environments, such as a scheduler or CI log, it prints one status
+line per update instead of redrawing.
+
+Press `Ctrl-C` to stop waiting and exit. To reduce waiting overall, lower the
+oversubscription ratio in the zone, or request a GPU type with more free
+capacity.
+
+## A client or server disappearing
+
+| Event | Behavior |
+| --- | --- |
+| Client crashes or is killed | The server stops receiving session heartbeats and tears the session down on its own, returning the GPU to the pool within about two minutes. |
+| Server becomes unreachable mid-session | The workload's CUDA calls fail. Restart the workload; it is assigned to another server with free capacity. |
+| Server is drained or removed | Existing sessions on it end. New assignments go to the remaining servers in the zone. |
+
+Thunder does not migrate a live CUDA session between servers. Checkpoint and
+restore of GPU state is not supported; see [Compatibility](/compatibility).

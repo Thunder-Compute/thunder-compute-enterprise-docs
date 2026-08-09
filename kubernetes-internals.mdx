@@ -1,0 +1,73 @@
+---
+title: "Kubernetes internals"
+sidebarTitle: "Kubernetes internals"
+description: "How the Thunder Helm chart is put together, and the Kubernetes abstractions it builds on."
+icon: "diagram-project"
+iconType: "solid"
+---
+
+This page describes the design of the Thunder device plugin chart: what it runs
+in the cluster, which Kubernetes abstractions it relies on, and why claims are
+modelled differently for pods and VMs. For the steps to install it, see
+[Kubernetes](/kubernetes).
+
+## Components
+
+![Thunder Device Plugin Kubernetes Architecture](/images/thunder-device-plugin-helm.png)
+
+The chart installs two components.
+
+**1. Operator**
+
+- Publishes the latest `ResourceSlices` based on per zone live GPU capacity and usage stats from the Thunder Compute API
+
+**2. Daemonset**
+
+- Sets up Thunder virtualization on a node
+- Monitors health of the node
+- Creates `client.thundercompute.com` resources, `Secrets`, and `ConfigMaps` for each `ResourceClaim`
+- Implements CDI injections for container-based consumers
+- Ensures reliable teardown and freeing of vGPU resources when a pod or VM is being cleaned up
+
+The design relies on two major abstractions provided by Kubernetes,
+[Dynamic Resource Allocation (DRA)](https://kubernetes.io/docs/concepts/scheduling-eviction/dynamic-resource-allocation/) and
+[Container Device Interface (CDI)](https://docs.docker.com/build/building/cdi/).
+
+## Dynamic Resource Allocation (DRA)
+
+DRA provides the following Kubernetes resources:
+
+- `DeviceClass` — a category of device; used to expose the actual vGPU
+- `ResourceSlice` — a collection of devices available in the cluster; this is used to publish total vGPU capacity per zone per GPU type
+- `ResourceClaim` — a concrete realization of a `ResourceClaimTemplate`, attached to a consumer; represents claimed vGPUs in use
+- `ResourceClaimTemplate` — a request for a given quantity of a resource; used by pods to acquire a certain number of a vGPU model
+
+Because Thunder publishes zone capacity rather than per-node devices, its slices
+use shared consumable capacity: several claims can draw from the same slice up
+to the published GPU count. This is what the `DRAConsumableCapacity` feature gate
+enables, and why it is required on the control plane and every kubelet.
+
+## Container Device Interface (CDI)
+
+CDI provides access to `containerEdits`, giving the ability to modify the env
+vars, devices, and mounts a container is exposed to. Thunder CDI is used by pods
+to mount in NVIDIA libraries and executables, environment variables, and hooks,
+so an unmodified CUDA image runs against a remote GPU without being rebuilt.
+
+## ResourceClaim vs ResourceClaimTemplate
+
+Use `ResourceClaimTemplate` for pods when Kubernetes should generate and own one
+claim per pod. Use `ResourceClaim` for VMs when the claim name must be known
+before scheduling.
+
+A stable claim name is what lets a VM mount the artifacts the daemon generates
+for it (see [KubeVirt](/kubevirt)):
+
+```text
+<resourceclaim-name>-thunder-configmap
+<resourceclaim-name>-thunder-secret
+```
+
+A standalone `ResourceClaim` is safe for VMs: it is not bound to a
+`ResourceSlice`, pool, zone, or node until the scheduler processes the consuming
+virt-launcher pod.

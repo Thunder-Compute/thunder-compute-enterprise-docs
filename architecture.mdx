@@ -1,0 +1,90 @@
+---
+title: "Architecture"
+description: "The components that make up a Thunder deployment and how a workload reaches a remote GPU."
+icon: "sitemap"
+iconType: "solid"
+---
+
+Thunder separates the machine that runs a workload from the machine that owns
+the GPU. This page describes the components that make that work and the path a
+workload takes to acquire a GPU.
+
+## Components
+
+| Component | Runs on | Role |
+| --- | --- | --- |
+| `libthunder` | Client | Preloaded into the workload process. Intercepts CUDA calls and forwards them to a GPU server over the network. |
+| `thunderd` | Server | Manages the GPU server, keeps it registered with its zone, and answers discovery requests from clients. |
+| `hostd` | Server | Creates and tears down a server process per client session, and reclaims the GPU when a session ends. |
+| Manager | Server | The matching engine. Assigns a client to a server with free capacity in the same zone. Runs in-zone alongside `thunderd`. |
+| Central | Thunder-operated | The management API at `api.thundercompute.com:2096`. Handles enrollment, the roster of servers and active clients, and telemetry. |
+
+Matching happens inside the zone. Central is a control-plane service, not part of
+the data path: CUDA traffic only ever moves between a client and a server in the
+same zone.
+
+## Zones
+
+A zone is a group of machines close enough on the network to share GPUs, in
+practice a data center or network region. A client is only ever matched to a
+server inside its own zone, and GPU traffic never crosses a zone boundary. A
+fleet may contain many zones.
+
+This is why the [requirements](/requirements) ask for round-trip latency below
+`2 ms` and throughput above `5 Gbps` within a zone: that link carries the
+intercepted CUDA calls.
+
+## Acquiring a GPU
+
+When a workload makes its first CUDA call, `libthunder` connects to a server:
+
+<Steps>
+  <Step title="Try the cached assignment">
+    The client keeps its last host assignment on disk. If it is still valid, the
+    client goes straight to that server's `hostd` and skips discovery and
+    matching entirely. A stale entry is invalidated and the client falls through
+    to the next step.
+  </Step>
+  <Step title="Discover manager endpoints">
+    The client reads its cached roster of `thunderd` peers, refreshing it from
+    Central when the cache produces nothing usable. It asks those peers for the
+    manager endpoints in the zone and keeps only the ones reporting healthy.
+  </Step>
+  <Step title="Request an assignment">
+    The client calls the manager, presenting its GPU type and count. The manager
+    authorizes the request against the roster of active clients and returns a
+    server with free capacity. If the zone has no free GPU, the client waits and
+    retries. See [Resilience](/resilience).
+  </Step>
+  <Step title="Create the session">
+    The client calls `hostd` on the assigned server, which starts a server
+    process for the session and returns the port to connect to. From here CUDA
+    calls flow directly between the client and that server process.
+  </Step>
+</Steps>
+
+Establishing this connection typically takes `50-100 ms`, which is why a GPU can
+be released and reassigned between phases of a workload rather than being held
+for its whole lifetime.
+
+## Releasing a GPU
+
+The client heartbeats its session to `hostd` while it holds the GPU. When the
+workload finishes using CUDA, the session ends and the GPU returns to the pool.
+
+If a client disappears without shutting down cleanly, `hostd` detects the missed
+heartbeats and tears the session down on its own, so a crashed or killed workload
+cannot strand a GPU.
+
+## Ports
+
+Clients open connections to servers; servers never dial clients.
+
+| Path | Port | Purpose |
+| --- | --- | --- |
+| Client and server to Central | `2096/tcp` (egress) | Enrollment, roster, heartbeat, check-in, telemetry |
+| Client to server | `32000-32199/tcp` and `/udp` (ingress on servers) | Discovery, session setup, and CUDA traffic |
+| Client and server to `get.thundercompute.com` | `443/tcp` (egress) | Binary and package downloads |
+
+The full list, including what each role needs, is in
+[Requirements](/requirements).

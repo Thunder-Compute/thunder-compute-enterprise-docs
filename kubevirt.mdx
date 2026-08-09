@@ -1,0 +1,144 @@
+---
+title: "KubeVirt"
+description: "Give KubeVirt virtual machines Thunder GPUs through Dynamic Resource Allocation."
+icon: "desktop"
+iconType: "solid"
+---
+
+KubeVirt VMs receive Thunder GPUs the same way pods do, through Dynamic Resource
+Allocation. The difference is that a VM needs a stable claim name so it can mount the
+guest artifacts Thunder generates for it, and KubeVirt needs its own feature gate
+before it will accept DRA-backed GPUs at all.
+
+<Note>
+  This page assumes a working Thunder installation on the cluster. Complete
+  [Kubernetes](/kubernetes) first: the feature gate, node labels, and chart deployment
+  are shared, and are not repeated here.
+</Note>
+
+## Enable GPUsWithDRA
+
+KubeVirt VMs receive GPUs through `ResourceClaims`, a DRA construct, which requires
+the `GPUsWithDRA` feature gate. This feature may be gated in default KubeVirt charts.
+
+Enable it without removing any existing KubeVirt feature gates:
+
+```bash
+feature_gates="$(kubectl -n kubevirt get kubevirt kubevirt -o json \
+  | jq -c '(.spec.configuration.developerConfiguration.featureGates // []) as $gates | if $gates | index("GPUsWithDRA") then $gates else $gates + ["GPUsWithDRA"] end')"
+
+kubectl -n kubevirt patch kubevirt kubevirt \
+  --type merge \
+  -p "{\"spec\":{\"configuration\":{\"developerConfiguration\":{\"featureGates\":${feature_gates}}}}}"
+```
+
+Verify the feature gate:
+
+```bash
+kubectl -n kubevirt get kubevirt kubevirt \
+  -o jsonpath='{.spec.configuration.developerConfiguration.featureGates}{"\n"}'
+```
+
+Expected output includes:
+
+```text
+["GPUsWithDRA"]
+```
+
+## Requesting GPUs from a VM
+
+VMs should use a stable `ResourceClaim`, not `ResourceClaimTemplate`. The stable
+claim name lets the VM mount the daemon-created guest ConfigMap and Secret:
+
+```text
+<resourceclaim-name>-thunder-configmap
+<resourceclaim-name>-thunder-secret
+```
+
+Create the VM claim:
+
+```yaml
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaim
+metadata:
+  name: thunder-vm-claim
+spec:
+  devices:
+    requests:
+      - name: gpu
+        exactly:
+          deviceClassName: thunder-vgpu
+          allocationMode: ExactCount
+          count: 1
+          selectors:
+            - cel:
+                expression: device.attributes["vgpu.thundercompute.com"]["gpu_type"] == "A6000"
+          capacity:
+            requests:
+              vgpu.thundercompute.com/gpu_count: "1"
+```
+
+Reference the claim from the VM and mount the Thunder guest artifacts with
+virtiofs:
+
+```yaml
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  name: thunder-vm
+spec:
+  running: true
+  template:
+    spec:
+      resourceClaims:
+        - name: vgpu
+          resourceClaimName: thunder-vm-claim
+      domain:
+        resources:
+          requests:
+            memory: 1Gi
+        devices:
+          filesystems:
+            - name: thunder-config
+              virtiofs: {}
+            - name: thunder-secret
+              virtiofs: {}
+          disks:
+            - name: cloudinitdisk
+              disk:
+                bus: virtio
+      volumes:
+        - name: thunder-config
+          configMap:
+            name: thunder-vm-claim-thunder-configmap
+            optional: true
+        - name: thunder-secret
+          secret:
+            secretName: thunder-vm-claim-thunder-secret
+            optional: true
+        - name: cloudinitdisk
+          cloudInitNoCloud:
+            userData: |
+              #cloud-config
+              mounts:
+                - [ thunder-config, /mnt/thunder-config, virtiofs ]
+                - [ thunder-secret, /mnt/thunder-secret, virtiofs ]
+              runcmd:
+                - [ bash, /mnt/thunder-config/install-thunder-client.sh ]
+```
+
+Use the test chart for a complete VM with root disk and networking:
+
+```bash
+helm install thunder-vm charts/tests/vm \
+  --set gpu.type=A6000 \
+  --set gpu.count=1
+```
+
+Inspect the VM and its generated Thunder artifacts:
+
+```bash
+kubectl get vm,vmi,pod -l app.kubernetes.io/instance=thunder-vm
+kubectl get resourceclaim thunder-vm-thunder-vgpu-test-vm-claim -o yaml
+kubectl get cm,secret | grep thunder-vm-thunder-vgpu-test-vm-claim
+```

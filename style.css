@@ -1,0 +1,8 @@
+/* Sidebar: the Kubernetes entry links to its own page (docs.json sets it as the
+   group's `root`), so the expand chevron makes it read as a folder rather than a
+   page. Hiding the chevron container also aligns its icon with the sibling
+   top-level entries. */
+li[id="/kubernetes"] > button > div:first-child,
+li[data-title="Kubernetes"][data-group-tag] > button > div:first-child {
+  display: none;
+}

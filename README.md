@@ -11,11 +11,14 @@ npm install
 npx mintlify dev
 ```
 
-The published documentation includes:
+## Structure
 
-- Overview
-- Glossary
-- Server and client setup
+Navigation is defined in `docs.json`.
+
+- **Getting Started** — `overview`, `requirements`, `nvidia-driver`
+- **Installation** — `standalone`, `kubernetes`, `sdk`
+- **Advanced** — `architecture`, `kubernetes-internals`, `edge-behavior`, `coming-soon`
+- **Other** — `authentication`, `compatibility`, `glossary`
 
 Documentation images live in `/images` and are referenced from MDX with
 root-absolute paths such as `/images/gpu-oversubscription.png`.

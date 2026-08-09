@@ -1,0 +1,156 @@
+---
+title: "Standalone"
+description: "Install Thunder directly on GPU servers and client machines, without an orchestrator."
+icon: "server"
+iconType: "solid"
+---
+
+A standalone deployment installs Thunder directly on the machines themselves: `thunderd` on each GPU server, `libthunder` on each client. Use it for bare-metal fleets, VM fleets, or any environment that is not managed by Kubernetes.
+
+Set up servers first. A client can only be enrolled into a zone that already has GPU capacity in it.
+
+Before you start, review the [requirements](/requirements) for both roles, and install the pinned NVIDIA driver and patched kernel module on every GPU server as described in [NVIDIA driver setup](/nvidia-driver).
+
+## Servers
+
+Thunder's software runs on each GPU server and connects it to the other machines in its zone. The Thunder dashboard is used to manage zones and authorize new servers.
+
+### Create a zone
+
+Open the **Zones** tab in [app.thundercompute.com](https://app.thundercompute.com/) and create a zone, or select an existing one. You will choose this zone when authorizing the server.
+
+You do not need to set `THUNDER_API_TOKEN` to enroll a server. `THUNDER_API_TOKEN` is the management API credential used by trusted automation, and it is not accepted by the server installer.
+
+### Install on the server
+
+After configuring the firewall, SSH into the server and install the Thunder binaries:
+
+```bash
+curl -fsSL https://get.thundercompute.com/install.sh | sudo sh
+```
+
+Then start the setup process:
+
+```bash
+sudo thunder up
+```
+
+The command prints an authorization URL. Open it in your browser, sign in to the dashboard, and choose the zone and IP address for the server.
+
+After authorization, `thunderd` manages the server and it should appear as active in the dashboard. Run `sudo thunder status` to check its health. If it reports an issue, follow the **Next** action in the output. Use `sudo thunder update` if the output reports missing or outdated binaries.
+
+### Remove a server
+
+Move active workloads away from the server before removing Thunder. Then run the installed uninstaller:
+
+```bash
+sudo /usr/local/bin/uninstall-thunder.sh
+```
+
+The uninstaller stops `thunderd`, revokes its node credential, and removes the Thunder service, binaries, configuration, and runtime files from the server.
+
+To also revoke the server through the management API and remove it from active rosters, call the following with the server ID shown in the dashboard. This requires the **Revoke servers** claim (`hosts:revoke`).
+
+```bash
+curl --fail-with-body -sS -X POST \
+  "https://api.thundercompute.com:2096/api/v1/hosts/<server_id>/revoke" \
+  -H "Authorization: Bearer $THUNDER_API_TOKEN"
+```
+
+## Clients
+
+A client is a machine, VM, or container that runs CUDA workloads using GPUs from servers in the same zone. It does not need a local GPU.
+
+### Create an enrollment token
+
+Every client needs its own enrollment token, scoped to the zone that contains the GPU servers it should use. Create it through the management API or the console. The rest of the setup is the same either way.
+
+<Tabs>
+  <Tab title="Automated">
+    Automated enrollment token generation is preferential, as you can invoke the following scripts within your scheduler, or your CI.
+
+    Use the management API when a scheduler or other controller creates clients dynamically. Create an organization API token with the `client_enrollment_tokens:create` claim, adding `clients:revoke` if the controller will also remove clients during teardown. See [Authentication](/authentication#claims) for the full list of claims.
+
+    Keep this API token in the trusted controller. Do not pass it to client machines or workload containers.
+
+    From the controller, create a short-lived, single-use enrollment token for each client. `gpuType` must use the API name for a supported GPU, such as `h100`, `a100xl`, `l40`, `l40s`, or `t4`.
+
+    ```bash
+    curl --fail-with-body -sS -X POST \
+      https://api.thundercompute.com:2096/api/v1/enrollment-tokens \
+      -H "Authorization: Bearer $THUNDER_API_TOKEN" \
+      -H "Content-Type: application/json" \
+      --data '{
+        "zoneId": "<zone_id>",
+        "role": "client",
+        "gpuType": "<gpu_type>",
+        "gpuCount": 1,
+        "expiresInSeconds": 1800
+      }'
+    ```
+
+    `--fail-with-body` prints the API's validation message when the request fails. The response from a successful request contains `enrollmentToken` and `enrollmentTokenId`. Pass only `enrollmentToken` to the client.
+
+    Save `enrollmentTokenId` with your client record. Uninstalling the client later requires it.
+  </Tab>
+
+  <Tab title="Manual">
+    <Warning>
+      Manual enrollment is not the preferred setup method. Use it mainly for testing or one-off client setup.
+    </Warning>
+
+    Open the **Zones** tab in [app.thundercompute.com](https://app.thundercompute.com/), open the zone, and select **Create enrollment token**, then:
+
+    1. Choose the **Client** role.
+    2. Select the GPU type and number of GPUs the client should receive.
+    3. Create the token and copy it.
+  </Tab>
+</Tabs>
+
+The enrollment token begins with `tr_`, is shown once, and can enroll only one client. The selected GPU type and count become the client's GPU entitlement.
+
+### Install on the client
+
+Run the installer on the client machine with the enrollment token from the previous step:
+
+```bash
+curl -fsSL https://get.thundercompute.com/install.sh | \
+  sudo THUNDER_NOWARN=1 \
+  THUNDER_INSTALL_MODE=client \
+  THUNDER_ENROLLMENT_TOKEN=$THUNDER_ENROLLMENT_TOKEN \
+  sh
+```
+
+`THUNDER_NOWARN=1` skips interactive confirmation; omit it to confirm the installation manually.
+
+The installer downloads and verifies `libthunder`, redeems the enrollment token, and writes the client credentials and GPU entitlement to `/etc/thunder/config.json`.
+
+The enrollment token is consumed during installation. If installation fails before the client is configured, create a new token before retrying.
+
+### Verify
+
+The enrolled client appears under **Zones → Clients** in [app.thundercompute.com](https://app.thundercompute.com/), which confirms enrollment succeeded.
+
+On the client, run:
+
+```bash
+nvidia-smi
+```
+
+The command should show the GPUs assigned to the client. You can then run a representative CUDA workload to confirm that it can use the expected GPU type and count.
+
+### Remove a client
+
+Remove Thunder from the client with the installed uninstaller, so that it removes the preload entry before deleting the library:
+
+```bash
+sudo /usr/local/bin/uninstall-thunder.sh
+```
+
+To also release the client's record and GPU entitlement through the management API, call the following with the `enrollmentTokenId` saved when the token was created. This requires the `clients:revoke` claim.
+
+```bash
+curl --fail-with-body -sS -X DELETE \
+  "https://api.thundercompute.com:2096/api/v1/enrollment-tokens/<enrollment_token_id>/node" \
+  -H "Authorization: Bearer $THUNDER_API_TOKEN"
+```

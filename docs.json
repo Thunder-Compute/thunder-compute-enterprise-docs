@@ -11,7 +11,7 @@
   "navigation": {
     "groups": [
       {
-        "group": "Get Started",
+        "group": "Getting Started",
         "pages": [
           "overview",
           "requirements",
@@ -21,15 +21,25 @@
       {
         "group": "Installation",
         "pages": [
-          "servers",
-          "clients"
+          "standalone",
+          {
+            "group": "Kubernetes",
+            "icon": "boxes",
+            "root": "kubernetes",
+            "pages": [
+              "kubevirt"
+            ]
+          },
+          "sdk"
         ]
       },
       {
-        "group": "Deployment",
+        "group": "Advanced",
         "pages": [
-          "kubernetes",
-          "custom"
+          "architecture",
+          "kubernetes-internals",
+          "resilience",
+          "coming-soon"
         ]
       },
       {
@@ -103,11 +113,23 @@
     },
     {
       "source": "/installation",
-      "destination": "/servers"
+      "destination": "/standalone"
     },
     {
       "source": "/hosts",
-      "destination": "/servers"
+      "destination": "/standalone"
+    },
+    {
+      "source": "/servers",
+      "destination": "/standalone"
+    },
+    {
+      "source": "/clients",
+      "destination": "/standalone"
+    },
+    {
+      "source": "/custom",
+      "destination": "/sdk"
     }
   ]
 }

@@ -1,0 +1,35 @@
+---
+title: "SDK"
+description: "Integrate Thunder GPU virtualization into a custom control plane."
+icon: "code"
+iconType: "solid"
+---
+
+Use the [Thunder Compute SDK](https://github.com/Thunder-Compute/thunder-sdk) when
+neither the standalone installer nor the Kubernetes chart matches your
+environment, for example when your own scheduler, provisioning system, or
+internal cloud should own the lifecycle of nodes and clients.
+
+The SDK gives your control plane the primitives needed to manage servers,
+clients, and zones directly against the Thunder management API.
+
+## Before you integrate
+
+Review the pieces the SDK automates, so the integration matches what the
+installers do by hand:
+
+- [Requirements](/requirements) for both roles, including network access
+- [Standalone installation](/standalone) for the server and client enrollment flow
+- [Authentication claims](/authentication#claims) for the token your controller needs
+- [Architecture](/architecture) for how clients discover and connect to servers
+
+Keep the organization API token in the trusted controller. Machines and workload
+containers only ever receive the single-use enrollment token issued for them.
+
+## Support
+
+Thunder Compute actively supports custom deployment work. We can help design the
+integration, adapt it to your scheduler and infrastructure, and work directly in
+customer codebases when deeper changes are needed.
+
+[Contact Us](https://www.thundercompute.com/contact)

@@ -1,90 +1,174 @@
 ---
-title: "Kubernetes Deployment"
-description: "Deploy Thunder Compute Enterprise in a Kubernetes Cluster."
+title: "Kubernetes"
+description: "Deploy Thunder Compute Enterprise in a Kubernetes cluster."
 icon: "boxes"
+iconType: "solid"
 ---
 
-We are releasing a public helm chart soon. This guide is designed to help with a full Kubernetes deployment.
+Thunder installs into Kubernetes as a Helm chart that publishes GPU capacity through
+Dynamic Resource Allocation (DRA), so a pod requests a virtual GPU the same way it
+requests any other DRA device.
 
-## Architecture
+We are releasing a public Helm chart soon. This guide covers a full deployment with
+the current chart. For how the chart is put together and why it is designed this way,
+see [Kubernetes internals](/kubernetes-internals).
 
-![Thunder Device Plugin Kubernetes Architecture](/images/thunder-device-plugin-helm.png)
+<Note>
+  GPU servers still need the pinned NVIDIA driver and the Thunder-patched kernel
+  module before they can serve capacity. See [Requirements](/requirements) and
+  [NVIDIA driver setup](/nvidia-driver).
+</Note>
 
-There are 2 main components in the Kubernetes Architecture: the Operator and the Daemonset.
+To give KubeVirt virtual machines a Thunder GPU, complete this page first, then see
+[KubeVirt](/kubevirt).
 
-**1. Operator**
-- Publishes the latest `ResourceSlices` based on per zone live GPU capacity and usage stats from the Thunder Compute API
+## Cluster setup
 
-**2. Daemonset**
-- Sets up Thunder Virtualization on a node
-- Monitors health of the node'
-- Creates `client.thundercompute.com` resources, `Secrets`, and `ConfigMaps` for each `ResourceClaim`
-- Implements CDI injections for container-based consumers
-- Ensures reliable teardown and freeing of vGPU resources when a pod/VM is being cleaned
+Thunder publishes zone GPU capacity as DRA consumable capacity, so several claims can
+draw from one published pool. That behavior is behind the `DRAConsumableCapacity`
+feature gate, which is off by default and must be enabled on the API server,
+scheduler, controller-manager, and **every kubelet** before installing the chart.
 
-The architecture relies on 2 major abstractions provided by Kubernetes - 
-[Dynamic Resource Allocation (DRA)](https://kubernetes.io/docs/concepts/scheduling-eviction/dynamic-resource-allocation/) and
-[Container Device Interface (CDI)](https://docs.docker.com/build/building/cdi/).
+The manifests in this guide use `resource.k8s.io/v1`, which requires Kubernetes
+`1.34` or newer.
 
-### 1. Dynamic Resource Allocation (DRA)
-
-This provides the following Kubernetes resources:
-- `DeviceClass` - a category of device; used to expose the actual vGPU
-- `ResourceSlice` - a collection of devices available in the cluster; this is used to publish total vGPU capacity per zone per GPU type
-- `ResourceClaim` - a concrete realization of a `ResourceClaimTemplate`, attached to a consumer; represents claimed vGPUs in use
-- `ResourceClaimTemplate` - a request for a given quantity of a resource; used by pods to acquire a certain number of a vGPU model
-
-### 2. Container Device Interface (CDI)
-- Provides access to `containerEdits`, giving the ability to modify envs, devices, mounts, etc a container is exposed to.
-- Thunder CDI is used by pods to mount in NVIDIA libraries and executables, env variables, hooks.
-
-## Kubernetes Setup
-
-Thunder uses Kubernetes Dynamic Resource Allocation (DRA) consumable capacity.
-Enable `DRAConsumableCapacity` on the API server, scheduler,
-controller-manager, and every kubelet before installing the chart.
-
-Kubernetes does not provide a cluster-scoped `kubectl` switch for feature gates.
-For a generic self-managed Kubernetes cluster, add this feature gate to each
-component's startup flags or component config:
+Kubernetes does not provide a cluster-scoped `kubectl` switch for feature gates, so
+how you set it depends on your distribution. In every case the value is the same:
 
 ```text
 --feature-gates=DRAConsumableCapacity=true
 ```
 
-Managed Kubernetes offerings may not expose these component flags. If the
-cluster provider does not allow DRA feature gates to be enabled on both the
-control plane and kubelets, use a self-managed cluster or a provider-supported
-Kubernetes version where the required DRA behavior is already available.
+<Tabs>
+  <Tab title="RKE2">
+    Server config at `/etc/rancher/rke2/config.yaml`:
 
-RKE2 server config at `/etc/rancher/rke2/config.yaml`:
+    ```yaml
+    kube-apiserver-arg:
+      - "feature-gates=DRAConsumableCapacity=true"
+    kube-scheduler-arg:
+      - "feature-gates=DRAConsumableCapacity=true"
+    kube-controller-manager-arg:
+      - "feature-gates=DRAConsumableCapacity=true"
+    kubelet-arg:
+      - "feature-gates=DRAConsumableCapacity=true"
+    ```
 
-```yaml
-kube-apiserver-arg:
-  - "feature-gates=DRAConsumableCapacity=true"
-kube-scheduler-arg:
-  - "feature-gates=DRAConsumableCapacity=true"
-kube-controller-manager-arg:
-  - "feature-gates=DRAConsumableCapacity=true"
-```
+    Worker config at `/etc/rancher/rke2/config.yaml`:
 
-RKE2 worker config at `/etc/rancher/rke2/config.yaml`:
+    ```yaml
+    kubelet-arg:
+      - "feature-gates=DRAConsumableCapacity=true"
+    ```
 
-```yaml
-kubelet-arg:
-  - "feature-gates=DRAConsumableCapacity=true"
-```
+    Restart RKE2 on each node it applies to:
 
-Restart RKE2:
+    ```bash
+    sudo systemctl restart rke2-server
+    sudo systemctl restart rke2-agent
+    ```
+  </Tab>
 
-```bash
-sudo systemctl restart rke2-server
-sudo systemctl restart rke2-agent
-```
+  <Tab title="K3s">
+    K3s takes the same configuration keys as RKE2. Server config at
+    `/etc/rancher/k3s/config.yaml`:
 
-Verify the API server preserves DRA capacity requests. This confirms the API
-server is configured correctly; the scheduler and kubelets still need the same
-feature gate in their component configuration:
+    ```yaml
+    kube-apiserver-arg:
+      - "feature-gates=DRAConsumableCapacity=true"
+    kube-scheduler-arg:
+      - "feature-gates=DRAConsumableCapacity=true"
+    kube-controller-manager-arg:
+      - "feature-gates=DRAConsumableCapacity=true"
+    kubelet-arg:
+      - "feature-gates=DRAConsumableCapacity=true"
+    ```
+
+    Agent config at `/etc/rancher/k3s/config.yaml`:
+
+    ```yaml
+    kubelet-arg:
+      - "feature-gates=DRAConsumableCapacity=true"
+    ```
+
+    Restart K3s on each node it applies to:
+
+    ```bash
+    sudo systemctl restart k3s
+    sudo systemctl restart k3s-agent
+    ```
+
+    <Note>
+      K3s ships a single binary that embeds the control plane, so a server node needs
+      both the control-plane arguments and `kubelet-arg` if it also runs workloads.
+    </Note>
+  </Tab>
+
+  <Tab title="kubeadm">
+    On each control-plane node, add the flag to the three static pod manifests in
+    `/etc/kubernetes/manifests/`. For example, in `kube-apiserver.yaml`:
+
+    ```yaml
+    spec:
+      containers:
+        - command:
+            - kube-apiserver
+            - --feature-gates=DRAConsumableCapacity=true
+    ```
+
+    Repeat for `kube-scheduler.yaml` and `kube-controller-manager.yaml`. The kubelet
+    restarts each static pod when its manifest changes.
+
+    <Warning>
+      If a component already has a `--feature-gates` flag, add to the existing
+      comma-separated list rather than adding a second flag. A duplicate flag is
+      ignored, and the component starts without the gate.
+    </Warning>
+
+    On every node, including workers, add the gate to the kubelet config at
+    `/var/lib/kubelet/config.yaml`:
+
+    ```yaml
+    featureGates:
+      DRAConsumableCapacity: true
+    ```
+
+    Then restart the kubelet:
+
+    ```bash
+    sudo systemctl restart kubelet
+    ```
+
+    For clusters you have not created yet, set the same values in the `kubeadm`
+    configuration file used by `kubeadm init`, so new control-plane nodes and workers
+    come up with the gate already enabled.
+  </Tab>
+
+  <Tab title="EKS, GKE, AKS">
+    <Warning>
+      Managed Kubernetes services do not currently support this deployment.
+    </Warning>
+
+    EKS, GKE, and AKS do not expose API server, scheduler, or controller-manager
+    flags, so `DRAConsumableCapacity` cannot be enabled on the control plane. Setting
+    it on self-managed node groups is not sufficient: without the gate on the API
+    server, the capacity fields in a Thunder `ResourceClaim` are silently dropped, and
+    without it on the scheduler, claims are never allocated against Thunder's shared
+    slices.
+
+    Use a self-managed cluster, or a provider-supported Kubernetes version where the
+    required DRA behavior is already enabled by default. Run the verification below
+    against any cluster you are unsure about; it answers the question directly.
+
+    A [standalone deployment](/standalone) is the supported path on infrastructure
+    where you control the machines but not the Kubernetes control plane.
+  </Tab>
+</Tabs>
+
+### Verify the feature gate
+
+Confirm the API server preserves DRA capacity requests. If the gate is missing, the
+`capacity` block is stripped from the returned object:
 
 ```bash
 kubectl apply --dry-run=server -o yaml -f - <<'EOF'
@@ -111,44 +195,11 @@ spec:
 EOF
 ```
 
-Verify Thunder slices use shared consumable capacity:
+This confirms the API server only. The scheduler and every kubelet still need the same
+feature gate in their component configuration, and a missing kubelet gate does not show
+up until a pod tries to start on that node.
 
-```bash
-kubectl get resourceslices -l app.kubernetes.io/name=thunder-dra-driver -o yaml \
-  | grep -A12 allowMultipleAllocations
-```
-
-## KubeVirt Setup
-
-Integrating with KubeVirt requires `GPUsWithDRA` to be enabled, since VMs
-are created with `ResourceClaims`, a DRA construct. This feature may be
-gated in default KubeVirt charts.
-
-Enable the feature gate without removing any existing KubeVirt feature gates.
-
-```bash
-feature_gates="$(kubectl -n kubevirt get kubevirt kubevirt -o json \
-  | jq -c '(.spec.configuration.developerConfiguration.featureGates // []) as $gates | if $gates | index("GPUsWithDRA") then $gates else $gates + ["GPUsWithDRA"] end')"
-
-kubectl -n kubevirt patch kubevirt kubevirt \
-  --type merge \
-  -p "{\"spec\":{\"configuration\":{\"developerConfiguration\":{\"featureGates\":${feature_gates}}}}}"
-```
-
-Verify the feature gate:
-
-```bash
-kubectl -n kubevirt get kubevirt kubevirt \
-  -o jsonpath='{.spec.configuration.developerConfiguration.featureGates}{"\n"}'
-```
-
-Expected output includes:
-
-```text
-["GPUsWithDRA"]
-```
-
-## Node Labels Setup
+## Node labels
 
 The daemonset schedules only onto Thunder GPU nodes. Each eligible node needs a
 zone, an externally reachable IP label, and the Thunder node labels expected by
@@ -172,11 +223,11 @@ Verify node labels:
 kubectl get nodes --show-labels | grep thundercompute.com/node
 ```
 
-## Chart Deployment
+## Chart deployment
 
 Install or upgrade the chart with a Kubernetes Secret containing the Thunder API
 configuration. The API token must have the Thunder API read, create, and delete capabilities for
-zones, nodes, clients, and enrollment tokens.
+zones, nodes, clients, and enrollment tokens. See [Authentication](/authentication#claims).
 
 Create the namespace and secret:
 
@@ -219,7 +270,15 @@ kubectl get deviceclasses thunder-vgpu
 kubectl get resourceslices -l app.kubernetes.io/name=thunder-dra-driver
 ```
 
-## Pod Requests
+Confirm the published slices use shared consumable capacity. Empty output means the
+chart is installed but the cluster is not honoring `DRAConsumableCapacity`:
+
+```bash
+kubectl get resourceslices -l app.kubernetes.io/name=thunder-dra-driver -o yaml \
+  | grep -A12 allowMultipleAllocations
+```
+
+## Requesting GPUs from a pod
 
 Pods should use `ResourceClaimTemplate`. Kubernetes creates a concrete claim for
 each pod and deletes it with the pod. The container requests the claim through
@@ -275,111 +334,3 @@ kubectl apply -f pod.yaml
 kubectl get pod thunder-pod-gpu
 kubectl get resourceclaims
 ```
-
-## VM Requests
-
-VMs should use a stable `ResourceClaim`, not `ResourceClaimTemplate`. The stable
-claim name lets the VM mount the daemon-created guest ConfigMap and Secret:
-
-```text
-<resourceclaim-name>-thunder-configmap
-<resourceclaim-name>-thunder-secret
-```
-
-Create the VM claim:
-
-```yaml
-apiVersion: resource.k8s.io/v1
-kind: ResourceClaim
-metadata:
-  name: thunder-vm-claim
-spec:
-  devices:
-    requests:
-      - name: gpu
-        exactly:
-          deviceClassName: thunder-vgpu
-          allocationMode: ExactCount
-          count: 1
-          selectors:
-            - cel:
-                expression: device.attributes["vgpu.thundercompute.com"]["gpu_type"] == "A6000"
-          capacity:
-            requests:
-              vgpu.thundercompute.com/gpu_count: "1"
-```
-
-Reference the claim from the VM and mount the Thunder guest artifacts with
-virtiofs:
-
-```yaml
-apiVersion: kubevirt.io/v1
-kind: VirtualMachine
-metadata:
-  name: thunder-vm
-spec:
-  running: true
-  template:
-    spec:
-      resourceClaims:
-        - name: vgpu
-          resourceClaimName: thunder-vm-claim
-      domain:
-        resources:
-          requests:
-            memory: 1Gi
-        devices:
-          filesystems:
-            - name: thunder-config
-              virtiofs: {}
-            - name: thunder-secret
-              virtiofs: {}
-          disks:
-            - name: cloudinitdisk
-              disk:
-                bus: virtio
-      volumes:
-        - name: thunder-config
-          configMap:
-            name: thunder-vm-claim-thunder-configmap
-            optional: true
-        - name: thunder-secret
-          secret:
-            secretName: thunder-vm-claim-thunder-secret
-            optional: true
-        - name: cloudinitdisk
-          cloudInitNoCloud:
-            userData: |
-              #cloud-config
-              mounts:
-                - [ thunder-config, /mnt/thunder-config, virtiofs ]
-                - [ thunder-secret, /mnt/thunder-secret, virtiofs ]
-              runcmd:
-                - [ bash, /mnt/thunder-config/install-thunder-client.sh ]
-```
-
-Use the test chart for a complete VM with root disk and networking:
-
-```bash
-helm install thunder-vm charts/tests/vm \
-  --set gpu.type=A6000 \
-  --set gpu.count=1
-```
-
-Inspect the VM and its generated Thunder artifacts:
-
-```bash
-kubectl get vm,vmi,pod -l app.kubernetes.io/instance=thunder-vm
-kubectl get resourceclaim thunder-vm-thunder-vgpu-test-vm-claim -o yaml
-kubectl get cm,secret | grep thunder-vm-thunder-vgpu-test-vm-claim
-```
-
-## ResourceClaim vs ResourceClaimTemplate
-
-Use `ResourceClaimTemplate` for pods when Kubernetes should generate and own one
-claim per pod. Use `ResourceClaim` for VMs when the claim name must be known
-before scheduling.
-
-A standalone `ResourceClaim` is safe for VMs: it is not bound to a
-`ResourceSlice`, pool, zone, or node until the scheduler processes the consuming
-virt-launcher pod.
