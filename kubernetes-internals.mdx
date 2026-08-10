@@ -6,68 +6,105 @@ icon: "diagram-project"
 iconType: "solid"
 ---
 
-This page describes the design of the Thunder device plugin chart: what it runs
-in the cluster, which Kubernetes abstractions it relies on, and why claims are
-modelled differently for pods and VMs. For the steps to install it, see
+What the chart runs in the cluster, the abstractions it relies on, and why claims are
+modelled differently for pods and VMs. For installation steps see
 [Kubernetes](/kubernetes).
 
 ## Components
 
 ![Thunder Device Plugin Kubernetes Architecture](/images/thunder-device-plugin-helm.png)
 
-The chart installs two components.
+**Operator** (Deployment) — reads live GPU capacity and usage from the Thunder API
+and publishes it as Kubernetes inventory:
 
-**1. Operator**
+- one `ResourceSlice` device per GPU, in one pool per zone and GPU type
+- one `DeviceClass` per GPU type, each exposing its own extended resource name
 
-- Publishes the latest `ResourceSlices` based on per zone live GPU capacity and usage stats from the Thunder Compute API
+**Daemonset** (GPU nodes) — turns an allocation into a working GPU:
 
-**2. Daemonset**
+- sets up Thunder virtualization on the node and monitors its health
+- creates a `client.thundercompute.com` resource, `Secret`, and `ConfigMap` per `ResourceClaim`
+- performs CDI injection for container consumers
+- tears down and frees GPU resources when a pod or VM goes away
 
-- Sets up Thunder virtualization on a node
-- Monitors health of the node
-- Creates `client.thundercompute.com` resources, `Secrets`, and `ConfigMaps` for each `ResourceClaim`
-- Implements CDI injections for container-based consumers
-- Ensures reliable teardown and freeing of vGPU resources when a pod or VM is being cleaned up
+It builds on two Kubernetes abstractions,
+[Dynamic Resource Allocation (DRA)](https://kubernetes.io/docs/concepts/scheduling-eviction/dynamic-resource-allocation/)
+and [Container Device Interface (CDI)](https://docs.docker.com/build/building/cdi/).
 
-The design relies on two major abstractions provided by Kubernetes,
-[Dynamic Resource Allocation (DRA)](https://kubernetes.io/docs/concepts/scheduling-eviction/dynamic-resource-allocation/) and
-[Container Device Interface (CDI)](https://docs.docker.com/build/building/cdi/).
+## Dynamic Resource Allocation
 
-## Dynamic Resource Allocation (DRA)
+| Resource | Used for |
+| --- | --- |
+| `DeviceClass` | A category of device. Thunder publishes one per GPU model, plus a catch-all. |
+| `ResourceSlice` | The devices available in the cluster. Thunder publishes one device per GPU, pooled per zone and model. |
+| `ResourceClaimTemplate` | A request for GPUs. Kubernetes generates one claim per pod from it. |
+| `ResourceClaim` | A concrete claim attached to a consumer; represents GPUs in use. |
 
-DRA provides the following Kubernetes resources:
+### One device per GPU
 
-- `DeviceClass` — a category of device; used to expose the actual vGPU
-- `ResourceSlice` — a collection of devices available in the cluster; this is used to publish total vGPU capacity per zone per GPU type
-- `ResourceClaim` — a concrete realization of a `ResourceClaimTemplate`, attached to a consumer; represents claimed vGPUs in use
-- `ResourceClaimTemplate` — a request for a given quantity of a resource; used by pods to acquire a certain number of a vGPU model
+Each GPU is its own device, so the number of GPUs in a request is a device **count**:
 
-Because Thunder publishes zone capacity rather than per-node devices, its slices
-use shared consumable capacity: several claims can draw from the same slice up
-to the published GPU count. This is what the `DRAConsumableCapacity` feature gate
-enables, and why it is required on the control plane and every kubelet.
+```yaml
+count: 2        # two GPUs
+```
 
-## Container Device Interface (CDI)
+This matters beyond ergonomics. Kubernetes translates an extended resource request
+(`thundercompute.com/gpu-a6000: 2`) into a count of devices, so modelling a GPU as a
+device is what lets both request styles resolve against the same pool.
 
-CDI provides access to `containerEdits`, giving the ability to modify the env
-vars, devices, and mounts a container is exposed to. Thunder CDI is used by pods
-to mount in NVIDIA libraries and executables, environment variables, and hooks,
-so an unmodified CUDA image runs against a remote GPU without being rebuilt.
+A slice holds at most 128 devices, so a zone with more GPUs of one model is sharded
+across several slices that share a pool name and generation.
+
+### Pooling and node selection
+
+A pool is scoped to a zone through the slice's node selector, not to a node. Any node
+in the zone can consume from it, which is why Thunder GPUs never appear in a node's
+`allocatable` — the scheduler resolves them instead of the kubelet advertising them.
+
+### Consumable capacity
+
+Consumable capacity is used only for oversubscription. With the default
+`sharesPerGPU: 1` a GPU is exclusive and carries no capacity at all, so the driver
+runs on plain, GA DRA. Setting `sharesPerGPU` above `1` publishes
+`thundercompute.com/shares` on each GPU and requires the `DRAConsumableCapacity`
+feature gate.
+
+### Why GPU types are separate classes
+
+A `DeviceClass` has per-device selectors and no cross-device constraint, so it cannot
+require that the devices in one request share a GPU model. A single catch-all
+extended resource could therefore return a mix of models, and a Thunder client is
+enrolled with exactly one model. Publishing a class per model puts the model in the
+resource name, which is the only way to pin it. See
+[Pinning a GPU type](/kubernetes#pinning-a-gpu-type).
+
+### Inventory drives the API surface
+
+Classes and pools are generated from Thunder inventory on every reconcile, so
+enrolling a node with a new GPU model creates its class, pool, and resource name
+without a chart upgrade, and retiring the last one removes them.
+
+## Container Device Interface
+
+CDI provides `containerEdits`, which modify the environment variables, devices, and
+mounts a container sees. Thunder uses it to inject NVIDIA libraries and executables,
+environment variables, and hooks, so an unmodified CUDA image runs against a remote
+GPU without being rebuilt.
 
 ## ResourceClaim vs ResourceClaimTemplate
 
-Use `ResourceClaimTemplate` for pods when Kubernetes should generate and own one
-claim per pod. Use `ResourceClaim` for VMs when the claim name must be known
-before scheduling.
+| | Use | Why |
+| --- | --- | --- |
+| Pods | `ResourceClaimTemplate` | Kubernetes generates and owns one claim per pod, and deletes it with the pod. |
+| VMs | `ResourceClaim` | The claim name must be known before scheduling, because it names the guest artifacts. |
 
-A stable claim name is what lets a VM mount the artifacts the daemon generates
-for it (see [KubeVirt](/kubevirt)):
+A stable claim name is what lets a VM mount the artifacts the daemon generates for it
+(see [KubeVirt](/kubevirt)):
 
 ```text
-<resourceclaim-name>-thunder-configmap
-<resourceclaim-name>-thunder-secret
+<claim-name>-thunder-configmap
+<claim-name>-thunder-secret
 ```
 
-A standalone `ResourceClaim` is safe for VMs: it is not bound to a
-`ResourceSlice`, pool, zone, or node until the scheduler processes the consuming
-virt-launcher pod.
+A standalone `ResourceClaim` is safe for VMs: it is not bound to a `ResourceSlice`,
+pool, zone, or node until the scheduler processes the consuming virt-launcher pod.

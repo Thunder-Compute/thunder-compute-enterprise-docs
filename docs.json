@@ -38,7 +38,7 @@
         "pages": [
           "architecture",
           "kubernetes-internals",
-          "resilience",
+          "fault-tolerance",
           "coming-soon"
         ]
       },

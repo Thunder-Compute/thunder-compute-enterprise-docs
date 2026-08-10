@@ -9,14 +9,22 @@ This page tracks work that is in progress but not yet generally available. It is
 not a commitment to a date. If something here is on your critical path, tell us
 and we will share the current timeline.
 
-## Public Helm chart
+## Memory oversubscription
 
-Kubernetes deployments currently install from a chart directory supplied by
-Thunder. We are publishing the `thunder-device-plugin` chart to a public Helm
-repository, so installs and upgrades become a standard `helm repo add` followed
-by `helm upgrade --install`, with versioned releases and documented values.
+Thunder currently oversubscribes whole GPUs: more workloads than GPUs, with the
+expectation that they will not all need one at the same instant. Memory
+oversubscription extends the same idea to GPU memory, so the memory committed to
+workloads on a GPU can exceed what that GPU physically has, with Thunder managing
+what stays resident.
 
-Until then, follow [Kubernetes](/kubernetes) for the current install path.
+This raises the achievable oversubscription ratio on fleets whose workloads reserve
+far more memory than they actually keep in use.
+
+## Multi-node
+
+A client is currently served by GPUs on a single server. Multi-node lets one client
+draw GPUs from several servers in its zone at once, so a workload can request more
+GPUs than any single machine in the fleet has.
 
 <Info>
   Interested in something that is not listed here, or want to influence what we

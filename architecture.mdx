@@ -1,80 +1,73 @@
 ---
 title: "Architecture"
-description: "The components that make up a Thunder deployment and how a workload reaches a remote GPU."
+description: "The components that make up a Thunder deployment, and how a zone locates the right GPU for a workload."
 icon: "sitemap"
 iconType: "solid"
 ---
 
-Thunder separates the machine that runs a workload from the machine that owns
-the GPU. This page describes the components that make that work and the path a
-workload takes to acquire a GPU.
+Thunder separates the machine that runs a workload from the machine that owns the
+GPU. Three pieces make that work.
 
 ## Components
 
 | Component | Runs on | Role |
 | --- | --- | --- |
-| `libthunder` | Client | Preloaded into the workload process. Intercepts CUDA calls and forwards them to a GPU server over the network. |
-| `thunderd` | Server | Manages the GPU server, keeps it registered with its zone, and answers discovery requests from clients. |
-| `hostd` | Server | Creates and tears down a server process per client session, and reclaims the GPU when a session ends. |
-| Manager | Server | The matching engine. Assigns a client to a server with free capacity in the same zone. Runs in-zone alongside `thunderd`. |
-| Central | Thunder-operated | The management API at `api.thundercompute.com:2096`. Handles enrollment, the roster of servers and active clients, and telemetry. |
+| `libthunder` | Client | Preloaded into the workload process. Intercepts CUDA calls and carries them to a GPU server over the network. |
+| `thunderd` | Server | Runs on every GPU server. Joins the zone mesh, shares the state of its GPUs with its peers, and serves GPU traffic to clients. |
+| Thunder Registry | Thunder-operated | The management API at `registry.thundercompute.com`. Registers servers and clients, issues and validates their credentials, and lets a client find the servers in its zone. |
 
-Matching happens inside the zone. Central is a control-plane service, not part of
-the data path: CUDA traffic only ever moves between a client and a server in the
-same zone.
+The Registry does registration, discovery, and authentication, and nothing else. It
+does not choose GPUs, hold state about running workloads, or sit in the data path,
+so a zone keeps working through a loss of connectivity to it. See
+[Fault tolerance](/fault-tolerance).
 
 ## Zones
 
-A zone is a group of machines close enough on the network to share GPUs, in
-practice a data center or network region. A client is only ever matched to a
-server inside its own zone, and GPU traffic never crosses a zone boundary. A
-fleet may contain many zones.
+A zone is a single locality: a set of machines that can all reach each other over a
+common IP range. In practice that is a data center, a row of racks, or a subnet.
 
-This is why the [requirements](/requirements) ask for round-trip latency below
-`2 ms` and throughput above `5 Gbps` within a zone: that link carries the
-intercepted CUDA calls.
+Every `thunderd` in a zone gossips with every other `thunderd` in that zone, so all
+of them share one view of the zone's GPUs. That mesh is what makes GPU placement a
+local decision rather than a round trip to a control plane.
 
-## Acquiring a GPU
+<Warning>
+  The mesh assumes full reachability. The IP each node advertises must be reachable
+  by every other node **and** by every client in the zone, on the Thunder port range.
+  A node that only part of the zone can reach will not participate correctly.
+</Warning>
 
-When a workload makes its first CUDA call, `libthunder` connects to a server:
+Zones are also a performance boundary. The link inside a zone carries intercepted
+CUDA calls, which is why the [requirements](/requirements) ask for round-trip latency
+below `2 ms` and throughput above `5 Gbps` between machines in it.
 
-<Steps>
-  <Step title="Try the cached assignment">
-    The client keeps its last host assignment on disk. If it is still valid, the
-    client goes straight to that server's `hostd` and skips discovery and
-    matching entirely. A stale entry is invalidated and the client falls through
-    to the next step.
-  </Step>
-  <Step title="Discover manager endpoints">
-    The client reads its cached roster of `thunderd` peers, refreshing it from
-    Central when the cache produces nothing usable. It asks those peers for the
-    manager endpoints in the zone and keeps only the ones reporting healthy.
-  </Step>
-  <Step title="Request an assignment">
-    The client calls the manager, presenting its GPU type and count. The manager
-    authorizes the request against the roster of active clients and returns a
-    server with free capacity. If the zone has no free GPU, the client waits and
-    retries. See [Resilience](/resilience).
-  </Step>
-  <Step title="Create the session">
-    The client calls `hostd` on the assigned server, which starts a server
-    process for the session and returns the port to connect to. From here CUDA
-    calls flow directly between the client and that server process.
-  </Step>
-</Steps>
+A client is only ever matched to a GPU inside its own zone, and GPU traffic never
+crosses a zone boundary. A fleet may contain many zones.
 
-Establishing this connection typically takes `50-100 ms`, which is why a GPU can
-be released and reassigned between phases of a workload rather than being held
-for its whole lifetime.
+## Using a GPU
 
-## Releasing a GPU
+There is nothing to run per workload and nothing to change in the workload itself.
+Once a client is enrolled, its configuration is written to `/etc/thunder/config.json`
+and `libthunder` is registered as a preloaded library. From that point any process on
+that machine that calls CUDA is served by Thunder, with no recompilation, no
+containerization, and no code changes.
 
-The client heartbeats its session to `hostd` while it holds the GPU. When the
-workload finishes using CUDA, the session ends and the GPU returns to the pool.
+What happens behind that:
 
-If a client disappears without shutting down cleanly, `hostd` detects the missed
-heartbeats and tears the session down on its own, so a crashed or killed workload
-cannot strand a GPU.
+- When a workload first touches CUDA, `libthunder` asks the zone mesh for a GPU.
+- The mesh selects the best one available, weighing network latency to the client
+  and how heavily each GPU is already being used. The client gets a good GPU for
+  *its* location, not simply the first free one.
+- Once that selection is made, the data path is **fully direct**. CUDA traffic flows
+  straight between the client and the server holding the GPU. Nothing sits in the
+  middle: not the mesh, not the Registry.
+
+Establishing this takes `50-100 ms`, which is why a GPU can be released and
+reassigned between phases of a workload instead of being held for its whole
+lifetime.
+
+When the workload stops using CUDA, the GPU returns to the pool. If a client
+disappears without shutting down cleanly, its server notices and reclaims the GPU on
+its own, so a crashed workload cannot strand one.
 
 ## Ports
 
@@ -82,9 +75,9 @@ Clients open connections to servers; servers never dial clients.
 
 | Path | Port | Purpose |
 | --- | --- | --- |
-| Client and server to Central | `2096/tcp` (egress) | Enrollment, roster, heartbeat, check-in, telemetry |
-| Client to server | `32000-32199/tcp` and `/udp` (ingress on servers) | Discovery, session setup, and CUDA traffic |
+| Client and server to the Registry | `443/tcp` (egress) | Enrollment, discovery, credential checks, heartbeat, telemetry |
+| Server to server | `32000-32199/tcp` and `/udp` (ingress on servers) | The zone gossip mesh |
+| Client to server | `32000-32199/tcp` and `/udp` (ingress on servers) | GPU selection and CUDA traffic |
 | Client and server to `get.thundercompute.com` | `443/tcp` (egress) | Binary and package downloads |
 
-The full list, including what each role needs, is in
-[Requirements](/requirements).
+The full list, including what each role needs, is in [Requirements](/requirements).

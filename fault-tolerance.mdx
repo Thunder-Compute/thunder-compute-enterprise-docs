@@ -1,0 +1,99 @@
+---
+title: "Fault tolerance"
+description: "What keeps running when a zone loses its WAN link, runs out of free GPUs, or loses a machine."
+icon: "shield-halved"
+iconType: "solid"
+---
+
+A zone is built to keep serving the workloads it already knows about, even when it
+cannot reach anything outside the data center, has no free GPUs left, or loses a
+machine. This page states precisely what continues and what does not in each of
+those cases, so you can plan around them rather than discover them.
+
+## What the WAN link is used for
+
+The [Thunder Registry](/architecture) is the only Thunder component outside your data
+center. A zone contacts it over `443` to register servers and clients, to check
+credentials against the list of clients that are still active, and to report
+telemetry.
+
+GPU selection is not one of those things. Servers in a zone share the state of their
+GPUs over the zone mesh and choose a GPU locally, and CUDA traffic goes directly
+between the client and the server holding the GPU. Neither path leaves the zone.
+
+## WAN outage
+
+If a zone loses its WAN link, or otherwise cannot reach
+`registry.thundercompute.com`:
+
+### Not affected
+
+- **Running workloads.** Every CUDA process keeps running against its GPU. Nothing is
+  interrupted, paused, or slowed.
+- **Handing out GPUs.** Clients that are already registered keep acquiring and
+  releasing GPUs. Selection happens in the zone mesh, and clients are authorized
+  against a roster each server keeps on disk, so even a server restart mid-outage
+  does not lock them out.
+- **Finding servers.** Clients use their cached view of the zone rather than asking
+  the Registry.
+- **Reconnecting.** A client that still holds a valid assignment reconnects straight
+  to the same server.
+
+### Affected
+
+- **Registering new servers.** A new GPU server cannot join a zone. Enrollment
+  requires the Registry.
+- **Registering new clients.** Enrollment tokens are issued and redeemed through the
+  Registry, so no new client can be brought online.
+- **Revoking a server or client.** The revocation is accepted but not applied in the
+  zone until the link returns.
+- **Dashboard and telemetry.** The dashboard shows the zone as last seen, and
+  telemetry gathers no new data for the duration.
+
+A zone refreshes its client roster about once a minute, and retries every few seconds
+while the Registry is unreachable, so it picks up revocations and newly registered
+clients shortly after the link is restored.
+
+<Warning>
+  Because the cached roster is authoritative during an outage, a client revoked while
+  the link is down keeps its access until the zone can reach the Registry again. Treat
+  revocation as eventually consistent, not instantaneous.
+</Warning>
+
+One case does not survive an outage: a zone that has never obtained a roster, from
+the Registry or from an on-disk cache, cannot authorize anyone. That only applies to
+a brand new zone brought up while the Registry is already unreachable.
+
+## No free GPUs
+
+Oversubscription means a zone can be fully committed at a given moment. When a client
+asks for a GPU and none is free, the request is not failed. The client waits and
+retries every 10 seconds until capacity appears, then continues.
+
+From the workload's point of view, the CUDA call that triggered the connection
+blocks. Nothing is returned to the application as an error, so a job does not crash
+because the fleet was busy.
+
+The client stays quiet for the first 10 seconds of waiting, then reports:
+
+```text
+All GPUs are currently busy. Retrying...
+```
+
+After a minute it also prints when the wait started and how to shorten it. In
+non-interactive environments, such as a scheduler or CI log, it prints one status
+line per update instead of redrawing.
+
+Press `Ctrl-C` to stop waiting and exit. To reduce waiting overall, lower the
+oversubscription ratio in the zone, or request a GPU type with more free capacity.
+
+## Losing a machine
+
+| Event | Behavior |
+| --- | --- |
+| Client crashes or is killed | The server stops receiving heartbeats for that session and tears it down on its own, returning the GPU to the pool within about two minutes. |
+| Server becomes unreachable mid-session | The workload's CUDA calls fail. Restart the workload; it is assigned to another server with free capacity. |
+| Server is drained or removed | Existing sessions on it end. New assignments go to the remaining servers in the zone. |
+
+Thunder does not migrate a live CUDA session between servers. Checkpoint and restore
+of GPU state is not supported; see [Compatibility](/compatibility).

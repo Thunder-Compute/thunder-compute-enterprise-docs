@@ -6,7 +6,7 @@ iconType: "solid"
 ---
 
 KubeVirt VMs receive Thunder GPUs the same way pods do, through Dynamic Resource
-Allocation. The difference is that a VM needs a stable claim name so it can mount the
+Allocation. Two differences: a VM needs a **stable claim name** so it can mount the
 guest artifacts Thunder generates for it, and KubeVirt needs its own feature gate
 before it will accept DRA-backed GPUs at all.
 
@@ -47,15 +47,21 @@ Expected output includes:
 
 ## Requesting GPUs from a VM
 
-VMs should use a stable `ResourceClaim`, not `ResourceClaimTemplate`. The stable
-claim name lets the VM mount the daemon-created guest ConfigMap and Secret:
+VMs use a stable `ResourceClaim`, not a `ResourceClaimTemplate`, because the claim
+name determines the guest artifacts the daemon creates:
 
 ```text
-<resourceclaim-name>-thunder-configmap
-<resourceclaim-name>-thunder-secret
+<claim-name>-thunder-configmap   # install-thunder-client.sh
+<claim-name>-thunder-secret      # enrollment-token
 ```
 
-Create the VM claim:
+<Note>
+  A VM claim cannot use the `resources.limits` form: the artifact names come from the
+  claim name, so the claim has to exist before the VM does.
+</Note>
+
+Create the VM claim. `count` is the number of GPUs, and the selector pins the model
+(see [Pinning a GPU type](/kubernetes#pinning-a-gpu-type)):
 
 ```yaml
 apiVersion: resource.k8s.io/v1
@@ -67,15 +73,12 @@ spec:
     requests:
       - name: gpu
         exactly:
-          deviceClassName: thunder-vgpu
+          deviceClassName: thunder-gpu
           allocationMode: ExactCount
-          count: 1
+          count: 1                      # one device per GPU
           selectors:
             - cel:
-                expression: device.attributes["vgpu.thundercompute.com"]["gpu_type"] == "A6000"
-          capacity:
-            requests:
-              vgpu.thundercompute.com/gpu_count: "1"
+                expression: device.attributes["thundercompute.com"]["gpu_type"] == "A6000"
 ```
 
 Reference the claim from the VM and mount the Thunder guest artifacts with
@@ -91,7 +94,7 @@ spec:
   template:
     spec:
       resourceClaims:
-        - name: vgpu
+        - name: gpu
           resourceClaimName: thunder-vm-claim
       domain:
         resources:
@@ -139,6 +142,6 @@ Inspect the VM and its generated Thunder artifacts:
 
 ```bash
 kubectl get vm,vmi,pod -l app.kubernetes.io/instance=thunder-vm
-kubectl get resourceclaim thunder-vm-thunder-vgpu-test-vm-claim -o yaml
-kubectl get cm,secret | grep thunder-vm-thunder-vgpu-test-vm-claim
+kubectl get resourceclaim thunder-vm-thunder-gpu-test-vm-claim -o yaml
+kubectl get cm,secret | grep thunder-vm-thunder-gpu-test-vm-claim
 ```

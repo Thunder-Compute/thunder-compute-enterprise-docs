@@ -17,7 +17,7 @@ Navigation is defined in `docs.json`.
 
 - **Getting Started** — `overview`, `requirements`, `nvidia-driver`
 - **Installation** — `standalone`, `kubernetes`, `sdk`
-- **Advanced** — `architecture`, `kubernetes-internals`, `edge-behavior`, `coming-soon`
+- **Advanced** — `architecture`, `kubernetes-internals`, `fault-tolerance`, `coming-soon`
 - **Other** — `authentication`, `compatibility`, `glossary`
 
 Documentation images live in `/images` and are referenced from MDX with
