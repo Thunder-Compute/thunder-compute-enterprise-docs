@@ -1,0 +1,29 @@
+---
+title: "SDK"
+description: "Integrate Thunder GPU management into an existing control plane."
+icon: "code"
+iconType: "solid"
+---
+
+The [Thunder Compute SDK](https://pkg.go.dev/github.com/Thunder-Compute/thunder-sdk)
+is a Go package that drives the Thunder Registry API directly.
+
+Use it instead of the [standalone](/standalone) flow when machines are created and
+destroyed programmatically. Standalone enrollment expects a person to open an
+authorization link and create a token in the console. The SDK puts that lifecycle in
+code, so an existing control plane can manage zones, enrollment, status, and
+revocation for GPU servers and clients alongside everything else it already
+provisions.
+
+Authenticate with an organization API token scoped to the claims the controller
+needs. See [Authentication](/authentication#claims).
+
+<Card title="Package reference" icon="book" href="https://pkg.go.dev/github.com/Thunder-Compute/thunder-sdk">
+  Full API documentation on pkg.go.dev
+</Card>
+
+## Support
+
+We can help design the integration, adapt it to your scheduler and infrastructure,
+and work directly in your codebase when deeper changes are needed.
+[Contact us](https://www.thundercompute.com/contact).

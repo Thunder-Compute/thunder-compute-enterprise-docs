@@ -1,0 +1,32 @@
+---
+title: "Coming soon"
+description: "Work in progress on Thunder Compute Enterprise."
+icon: "road"
+iconType: "solid"
+---
+
+This page tracks work that is in progress but not yet generally available. It is
+not a commitment to a date. If something here is on your critical path, tell us
+and we will share the current timeline.
+
+## Memory oversubscription
+
+Thunder currently oversubscribes whole GPUs: more workloads than GPUs, with the
+expectation that they will not all need one at the same instant. Memory
+oversubscription extends the same idea to GPU memory, so the memory committed to
+workloads on a GPU can exceed what that GPU physically has, with Thunder managing
+what stays resident.
+
+This raises the achievable oversubscription ratio on fleets whose workloads reserve
+far more memory than they actually keep in use.
+
+## Multi-node
+
+A client is currently served by GPUs on a single server. Multi-node lets one client
+draw GPUs from several servers in its zone at once, so a workload can request more
+GPUs than any single machine in the fleet has.
+
+<Info>
+  Interested in something that is not listed here, or want to influence what we
+  build next? [Contact us](https://www.thundercompute.com/contact).
+</Info>

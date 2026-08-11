@@ -1,0 +1,26 @@
+/* Sidebar: the Kubernetes section under Installation is always open, so it reads
+   as a heading for the two pages beneath it rather than a collapsible folder.
+   Hide the expand chevron and let the title link to its root page (Basic setup). */
+li[data-group-tag][data-title="Kubernetes"] > button > div:first-child {
+  display: none;
+}
+
+/* The title and Basic setup point at the same page, so Mintlify marks both as
+   current. Keep the highlight on the page entry alone and leave the title in the
+   resting colours of its sibling entries. */
+li[data-group-tag][data-title="Kubernetes"][data-active-nav-item="true"] > button {
+  color: rgb(64 66 67);
+  text-shadow: none;
+}
+
+li[data-group-tag][data-title="Kubernetes"][data-active-nav-item="true"] > button svg {
+  background-color: rgb(160 162 163);
+}
+
+.dark li[data-group-tag][data-title="Kubernetes"][data-active-nav-item="true"] > button {
+  color: rgb(160 162 163);
+}
+
+.dark li[data-group-tag][data-title="Kubernetes"][data-active-nav-item="true"] > button svg {
+  background-color: rgb(114 115 117);
+}

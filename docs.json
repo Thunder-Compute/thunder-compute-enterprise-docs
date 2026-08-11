@@ -11,24 +11,37 @@
   "navigation": {
     "groups": [
       {
-        "group": "Get Started",
+        "group": "Getting Started",
         "pages": [
           "overview",
-          "requirements"
+          "requirements",
+          "nvidia-driver"
         ]
       },
       {
         "group": "Installation",
         "pages": [
-          "servers",
-          "clients"
+          "standalone",
+          {
+            "group": "Kubernetes",
+            "icon": "dharmachakra",
+            "root": "kubernetes",
+            "expanded": true,
+            "pages": [
+              "kubernetes",
+              "kubevirt"
+            ]
+          },
+          "sdk"
         ]
       },
       {
-        "group": "Deployment",
+        "group": "Advanced",
         "pages": [
-          "kubernetes",
-          "custom"
+          "architecture",
+          "kubernetes-internals",
+          "fault-tolerance",
+          "coming-soon"
         ]
       },
       {
@@ -102,11 +115,23 @@
     },
     {
       "source": "/installation",
-      "destination": "/servers"
+      "destination": "/standalone"
     },
     {
       "source": "/hosts",
-      "destination": "/servers"
+      "destination": "/standalone"
+    },
+    {
+      "source": "/servers",
+      "destination": "/standalone"
+    },
+    {
+      "source": "/clients",
+      "destination": "/standalone"
+    },
+    {
+      "source": "/custom",
+      "destination": "/sdk"
     }
   ]
 }
