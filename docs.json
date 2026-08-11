@@ -28,7 +28,6 @@
             "root": "kubernetes",
             "expanded": true,
             "pages": [
-              "kubernetes",
               "kubevirt"
             ]
           },
