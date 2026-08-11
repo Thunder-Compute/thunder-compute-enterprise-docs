@@ -1,20 +1,20 @@
 ---
 title: "NVIDIA driver setup"
-description: "Install the pinned NVIDIA driver and the Thunder-patched kernel module on a GPU server."
+description: "Install the Thunder-patched NVIDIA GPU driver on a GPU server."
 icon: "microchip"
 iconType: "solid"
 ---
 
-Thunder servers run the NVIDIA open GPU driver pinned by Thunder, plus a patched build of the NVIDIA kernel module. The patch is what lets mapped, pinned, and managed memory (`cudaHostAlloc`, `cudaMallocManaged`, and the Driver API equivalents) work across the virtualization boundary.
+Thunder servers run a Thunder-patched build of the pinned NVIDIA open GPU driver. The patch is what lets mapped, pinned, and managed memory (`cudaHostAlloc`, `cudaMallocManaged`, and the Driver API equivalents) work across the virtualization boundary.
 
-`cudaHostRegister` is the exception. It is emulated rather than virtualized and never provides full unified memory, with or without the patched module. See [Compatibility](/compatibility).
+`cudaHostRegister` is the exception. It is emulated rather than virtualized and never provides full unified memory, with or without the patched driver. See [Compatibility](/compatibility).
 
-Without the patched module a server still runs normally and all other CUDA workloads are unaffected, but workloads using those allocation types fail on that server.
+Without the patched driver a server still runs normally and all other CUDA workloads are unaffected, but workloads using those allocation types fail on that server.
 
 | | |
 | --- | --- |
 | Driver branch | `610.43.02`, installed from NVIDIA's CUDA repository as `nvidia-driver-open` |
-| Patched module package | `thunder-nvidia-dkms-open` `610.43.02-3`, built through DKMS on each server |
+| Patched driver package | `thunder-nvidia-dkms-open` `610.43.02-3`, built through DKMS on each server |
 | Platforms | Debian and Ubuntu on `x86_64` |
 
 ## Before you start
@@ -23,13 +23,13 @@ Without the patched module a server still runs normally and all other CUDA workl
   These steps replace the NVIDIA driver packages on the server and require a reboot. Drain the server and stop every workload holding `/dev/nvidia*` first. On a machine with a display attached, the desktop session will break partway through, so run the commands from a console or over SSH.
 </Warning>
 
-Confirm `dkms` and the kernel headers for every installed kernel are present, since DKMS compiles the module against each of them:
+Confirm `dkms` and the kernel headers for every installed kernel are present, since DKMS builds the GPU driver against each of them:
 
 ```bash
 sudo apt-get install -y dkms linux-headers-$(uname -r)
 ```
 
-If the server has Secure Boot enabled, enroll a DKMS signing key in its MOK database before continuing, or the patched module will build but refuse to load. See [Troubleshooting](#troubleshooting).
+If the server has Secure Boot enabled, enroll a DKMS signing key in its MOK database before continuing, or the patched driver will build but refuse to load. See [Troubleshooting](#troubleshooting).
 
 ## Install
 
@@ -52,20 +52,20 @@ sudo apt-get update
 #    because it writes the apt preferences the next step depends on.
 sudo apt-get install -y nvidia-driver-pinning-610.43.02
 
-# 4. Download the Thunder-patched kernel module package.
+# 4. Download the Thunder-patched GPU driver package.
 wget https://get.thundercompute.com/thunder-nvidia-dkms-open_610.43.02-3_all.deb
 
-# 5. Install the driver and the patched module together, then hold the patched
-#    package so apt full-upgrade cannot replace it with the stock module.
+# 5. Install the NVIDIA driver and the Thunder patch together, then hold the
+#    patched package so apt full-upgrade cannot replace it with the stock driver.
 sudo apt-get install -y \
   nvidia-driver-open \
   ./thunder-nvidia-dkms-open_610.43.02-3_all.deb
 sudo apt-mark hold thunder-nvidia-dkms-open
 
-# 6. Confirm DKMS built the module for every installed kernel before rebooting.
+# 6. Confirm DKMS built the GPU driver for every installed kernel before rebooting.
 dkms status
 
-# 7. Reboot to load the patched modules.
+# 7. Reboot to load the patched driver.
 sudo reboot
 ```
 
@@ -73,7 +73,7 @@ sudo reboot
   For other distributions, replace `ubuntu2404` in step 2 with the matching repository name: `ubuntu2204` for Ubuntu 22.04, `debian12` for Debian 12. Everything else is unchanged.
 </Note>
 
-Step 6 should list `nvidia/610.43.02` as `installed` for each kernel in `/boot`. A kernel missing from that output has no NVIDIA module and will boot without GPU support, so resolve it before rebooting.
+Step 6 should list `nvidia/610.43.02` as `installed` for each kernel in `/boot`. A kernel missing from that output has no NVIDIA driver and will boot without GPU support, so resolve it before rebooting.
 
 ## Verify
 
@@ -84,11 +84,11 @@ nvidia-smi --query-gpu=driver_version --format=csv,noheader
 cat /sys/module/nvidia_uvm/parameters/uvm_thunder_patch_version
 ```
 
-The first command reports `610.43.02`. The second prints the patch ABI version, currently `2`. If that file does not exist, the server booted the stock kernel module and mapped, pinned, and managed memory will not work.
+The first command reports `610.43.02`. The second prints the patch ABI version, currently `2`. If that file does not exist, the server booted the stock NVIDIA driver and mapped, pinned, and managed memory will not work.
 
 ## Updating
 
-Kernel upgrades need no action. DKMS rebuilds the patched module for each new kernel automatically, provided `dkms` and the matching headers stay installed. Verify with `dkms status` after a kernel upgrade and before rebooting into it.
+Kernel upgrades need no action. DKMS rebuilds the patched driver for each new kernel automatically, provided `dkms` and the matching headers stay installed. Verify with `dkms status` after a kernel upgrade and before rebooting into it.
 
 To move to a new Thunder driver release, release the hold, then rerun the install steps with the new version:
 
@@ -98,7 +98,7 @@ sudo apt-mark unhold thunder-nvidia-dkms-open
 
 The pinning package is itself matched by the removal pattern in step 1, so re-running that step also removes the pin. That is intentional: it lets step 3 install a different pinned branch cleanly.
 
-The userspace driver and the patched kernel module must always agree. A mismatch either prevents the modules from loading or silently falls back to the stock kernel module.
+The NVIDIA userspace libraries and the patched GPU driver must always agree. A mismatch either prevents the driver from loading or silently falls back to the stock driver.
 
 ## Troubleshooting
 
@@ -106,6 +106,6 @@ The userspace driver and the patched kernel module must always agree. A mismatch
 | --- | --- |
 | `dpkg` reports `trying to overwrite '/usr/lib/x86_64-linux-gnu/libnvidia-cfg.so.1', which is also in package libnvidia-cfg1-<branch>` | Step 1 ran without `nvidia-persistenced`, so apt tried to install a replacement library while the old branch was still on disk. Rerun step 1 exactly as written. |
 | `apt` fails on an unrelated kernel package, reporting `Autoinstall of module nvidia/<old version> ... Bad return status` | An older driver branch is still registered with DKMS and cannot build against a newer kernel, which blocks every later apt transaction. Complete step 1 to remove that branch, then run `sudo dpkg --configure -a`. |
-| `modprobe` reports `Key was rejected by service` | Secure Boot rejects unsigned DKMS modules. Enroll a signing key for DKMS in the server's MOK database with `sudo mokutil --import /var/lib/shim-signed/mok/MOK.der` and reboot to complete enrollment, or disable Secure Boot. |
-| `uvm_thunder_patch_version` is missing after rebooting | The stock module is loaded. Check `dkms status` for a failed build against the running kernel, then reinstall the package from step 5. |
+| `modprobe` reports `Key was rejected by service` | Secure Boot rejects unsigned DKMS-built drivers. Enroll a signing key for DKMS in the server's MOK database with `sudo mokutil --import /var/lib/shim-signed/mok/MOK.der` and reboot to complete enrollment, or disable Secure Boot. |
+| `uvm_thunder_patch_version` is missing after rebooting | The stock GPU driver is loaded. Check `dkms status` for a failed build against the running kernel, then reinstall the package from step 5. |
 | `dkms status` omits a kernel listed in `/boot` | The headers for that kernel are missing. Install `linux-headers-<version>`, then run `sudo dkms autoinstall`. |

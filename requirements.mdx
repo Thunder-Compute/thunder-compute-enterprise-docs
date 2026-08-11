@@ -15,9 +15,9 @@ For CUDA feature support and known limitations, also review [Compatibility](/com
 | --- | --- |
 | Placement and performance | Must be in the same zone as its clients. For best performance, use a network with round-trip latency below `2 ms` and throughput above `5 Gbps`. |
 | System | NVIDIA GPU; NVIDIA driver 610 or newer (Thunder pins `610.43.02`); root or `sudo` access; `curl` and `wget` in `PATH`; `dkms` and matching kernel headers installed. |
-| CUDA memory | Mapped, pinned, and managed memory (`cudaHostAlloc`, `cudaMallocManaged`, and Driver API equivalents) requires the Thunder-patched NVIDIA kernel module. Without it, only these allocation types fail. See [NVIDIA driver setup](/nvidia-driver) to install it. `cudaHostRegister` is emulated and never provides full unified memory, even with the patched module. See [Compatibility](/compatibility). |
+| CUDA memory | Mapped, pinned, and managed memory (`cudaHostAlloc`, `cudaMallocManaged`, and Driver API equivalents) requires the Thunder-patched NVIDIA GPU driver. Without it, only these allocation types fail. See [NVIDIA driver setup](/nvidia-driver) to install it. `cudaHostRegister` is emulated and never provides full unified memory, even with the patched driver. See [Compatibility](/compatibility). |
 | Ingress | `32000-32199` over TCP and UDP for same-zone server communication and client-facing GPU traffic. Scope access to the zone's server and client networks. |
-| Egress | `443` over TCP to `registry.thundercompute.com` for registration, heartbeat, check-in, and telemetry; to `get.thundercompute.com` to download and update `thunderd`, `thunder`, `libthunder`, and the patched NVIDIA kernel module package; and to `developer.download.nvidia.com` for the pinned NVIDIA driver. |
+| Egress | `443` over TCP to `registry.thundercompute.com` for registration, heartbeat, check-in, and telemetry; to `get.thundercompute.com` to download and update `thunderd`, `thunder`, `libthunder`, and the patched NVIDIA GPU driver package; and to `developer.download.nvidia.com` for the pinned NVIDIA driver. |
 
 ## Client
 
