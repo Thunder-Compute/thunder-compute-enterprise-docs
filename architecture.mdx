@@ -16,6 +16,64 @@ GPU. Three pieces make that work.
 | `thunderd` | Server | Runs on every GPU server. Joins the zone mesh, shares the state of its GPUs with its peers, and serves GPU traffic to clients. |
 | Thunder Registry | Thunder-operated | The management API at `registry.thundercompute.com`. Registers servers and clients, issues and validates their credentials, and lets a client find the servers in its zone. |
 
+```mermaid
+flowchart TB
+  registry@{ shape: cloud, label: "Thunder Registry" }
+
+  subgraph fleet[" "]
+    direction LR
+
+    subgraph n1["node-1"]
+      direction TB
+      subgraph pod["Pod"]
+        direction TB
+        pw["workload"]
+        pl["libthunder"]
+        pw ~~~ pl
+      end
+      td1["thunderd"]
+      gpu1@{ shape: st-rect, label: "GPU ×4" }
+      pod ~~~ td1
+      td1 ~~~ gpu1
+    end
+
+    subgraph n2["node-2"]
+      direction TB
+      td2["thunderd"]
+      gpu2@{ shape: st-rect, label: "GPU ×4" }
+      td2 ~~~ gpu2
+    end
+
+    subgraph n3["node-3 · no GPU"]
+      direction TB
+      subgraph vm["Virtual machine"]
+        direction TB
+        vw["workload"]
+        vl["libthunder"]
+        vw ~~~ vl
+      end
+    end
+
+    td1 <-->|"mesh"| td2
+    pl ==> td1
+    vl ==>|"CUDA over the network"| td2
+  end
+
+  registry -. "443" .- fleet
+
+  classDef thunder fill:#4476a826,stroke:#4476a8,stroke-width:1.5px
+  classDef silicon fill:#95c5ea1f,stroke:#95c5ea,stroke-width:1.5px
+  classDef userland fill:transparent,stroke-dasharray:3 3
+  class pl,vl,td1,td2 thunder
+  class gpu1,gpu2 silicon
+  class pw,vw userland
+  style fleet fill:transparent,stroke:transparent
+```
+
+Every machine runs the same mesh. `thunderd` sits on top of the GPUs it owns;
+`libthunder` sits under the workload wherever that workload happens to run. A pod
+on a GPU machine and a VM on a machine with no GPU reach the mesh the same way.
+
 The Registry does registration, discovery, and authentication, and nothing else. It
 does not choose GPUs, hold state about running workloads, or sit in the data path,
 so a zone keeps working through a loss of connectivity to it. See

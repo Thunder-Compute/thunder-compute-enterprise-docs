@@ -5,7 +5,9 @@ icon: "microchip"
 iconType: "solid"
 ---
 
-Thunder servers run the NVIDIA open GPU driver pinned by Thunder, plus a patched build of the NVIDIA kernel module. The patch is what lets mapped, pinned, and managed memory (`cudaHostAlloc`, `cudaHostRegister`, `cudaMallocManaged`, and the Driver API equivalents) work across the virtualization boundary.
+Thunder servers run the NVIDIA open GPU driver pinned by Thunder, plus a patched build of the NVIDIA kernel module. The patch is what lets mapped, pinned, and managed memory (`cudaHostAlloc`, `cudaMallocManaged`, and the Driver API equivalents) work across the virtualization boundary.
+
+`cudaHostRegister` is the exception. It is emulated rather than virtualized and never provides full unified memory, with or without the patched module. See [Compatibility](/compatibility).
 
 Without the patched module a server still runs normally and all other CUDA workloads are unaffected, but workloads using those allocation types fail on that server.
 

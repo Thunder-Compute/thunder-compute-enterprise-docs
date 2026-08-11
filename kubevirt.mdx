@@ -6,53 +6,27 @@ iconType: "solid"
 ---
 
 KubeVirt VMs receive Thunder GPUs the same way pods do, through Dynamic Resource
-Allocation. Two differences: a VM needs a **stable claim name** so it can mount the
-guest artifacts Thunder generates for it, and KubeVirt needs its own feature gate
-before it will accept DRA-backed GPUs at all.
+Allocation.
+
+A VM declares a `ResourceClaim` with a name you choose. When the VM starts, Thunder
+writes a Secret named after that claim, holding an enrollment token and a setup
+script. The VM mounts it over virtiofs, and cloud-init runs the script to install the
+Thunder client into the guest. From there the guest reaches its GPU over the network,
+so the VM declares no GPU device.
 
 <Note>
   This page assumes a working Thunder installation on the cluster. Complete
-  [Kubernetes](/kubernetes) first: the feature gate, node labels, and chart deployment
-  are shared, and are not repeated here.
+  [Kubernetes](/kubernetes) first: node labels and chart deployment are shared, and
+  are not repeated here.
 </Note>
-
-## Enable GPUsWithDRA
-
-KubeVirt VMs receive GPUs through `ResourceClaims`, a DRA construct, which requires
-the `GPUsWithDRA` feature gate. This feature may be gated in default KubeVirt charts.
-
-Enable it without removing any existing KubeVirt feature gates:
-
-```bash
-feature_gates="$(kubectl -n kubevirt get kubevirt kubevirt -o json \
-  | jq -c '(.spec.configuration.developerConfiguration.featureGates // []) as $gates | if $gates | index("GPUsWithDRA") then $gates else $gates + ["GPUsWithDRA"] end')"
-
-kubectl -n kubevirt patch kubevirt kubevirt \
-  --type merge \
-  -p "{\"spec\":{\"configuration\":{\"developerConfiguration\":{\"featureGates\":${feature_gates}}}}}"
-```
-
-Verify the feature gate:
-
-```bash
-kubectl -n kubevirt get kubevirt kubevirt \
-  -o jsonpath='{.spec.configuration.developerConfiguration.featureGates}{"\n"}'
-```
-
-Expected output includes:
-
-```text
-["GPUsWithDRA"]
-```
 
 ## Requesting GPUs from a VM
 
-VMs use a stable `ResourceClaim`, not a `ResourceClaimTemplate`, because the claim
-name determines the guest artifacts the daemon creates:
+The claim needs a name you choose, because the VM mounts the Secret Thunder derives
+from it and a manifest has to name that Secret up front.
 
 ```text
-<claim-name>-thunder-configmap   # install-thunder-client.sh
-<claim-name>-thunder-secret      # enrollment-token
+<claim-name>-thunder-setup   # enrollment-token, install-thunder-client.sh
 ```
 
 <Note>
@@ -60,8 +34,8 @@ name determines the guest artifacts the daemon creates:
   claim name, so the claim has to exist before the VM does.
 </Note>
 
-Create the VM claim. `count` is the number of GPUs, and the selector pins the model
-(see [Pinning a GPU type](/kubernetes#pinning-a-gpu-type)):
+Create the VM claim. `count` is the number of GPUs, and the `DeviceClass` names the
+model (see [Naming a GPU type](/kubernetes#naming-a-gpu-type)):
 
 ```yaml
 apiVersion: resource.k8s.io/v1
@@ -73,12 +47,9 @@ spec:
     requests:
       - name: gpu
         exactly:
-          deviceClassName: thunder-gpu
+          deviceClassName: thunder-gpu-a6000   # the class pins the model
           allocationMode: ExactCount
-          count: 1                      # one device per GPU
-          selectors:
-            - cel:
-                expression: device.attributes["thundercompute.com"]["gpu_type"] == "A6000"
+          count: 1                             # one device per GPU
 ```
 
 Reference the claim from the VM and mount the Thunder guest artifacts with
@@ -102,32 +73,25 @@ spec:
             memory: 1Gi
         devices:
           filesystems:
-            - name: thunder-config
-              virtiofs: {}
-            - name: thunder-secret
+            - name: thunder-setup
               virtiofs: {}
           disks:
             - name: cloudinitdisk
               disk:
                 bus: virtio
       volumes:
-        - name: thunder-config
-          configMap:
-            name: thunder-vm-claim-thunder-configmap
-            optional: true
-        - name: thunder-secret
+        - name: thunder-setup
           secret:
-            secretName: thunder-vm-claim-thunder-secret
+            secretName: thunder-vm-claim-thunder-setup
             optional: true
         - name: cloudinitdisk
           cloudInitNoCloud:
             userData: |
               #cloud-config
               mounts:
-                - [ thunder-config, /mnt/thunder-config, virtiofs ]
-                - [ thunder-secret, /mnt/thunder-secret, virtiofs ]
+                - [ thunder-setup, /mnt/thunder-setup, virtiofs ]
               runcmd:
-                - [ bash, /mnt/thunder-config/install-thunder-client.sh ]
+                - [ bash, /mnt/thunder-setup/install-thunder-client.sh ]
 ```
 
 Use the test chart for a complete VM with root disk and networking:

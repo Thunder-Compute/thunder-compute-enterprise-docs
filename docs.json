@@ -24,9 +24,11 @@
           "standalone",
           {
             "group": "Kubernetes",
-            "icon": "boxes",
+            "icon": "dharmachakra",
             "root": "kubernetes",
+            "expanded": true,
             "pages": [
+              "kubernetes",
               "kubevirt"
             ]
           },

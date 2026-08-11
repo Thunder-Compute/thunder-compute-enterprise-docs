@@ -16,7 +16,7 @@ npx mintlify dev
 Navigation is defined in `docs.json`.
 
 - **Getting Started** — `overview`, `requirements`, `nvidia-driver`
-- **Installation** — `standalone`, `kubernetes`, `sdk`
+- **Installation** — `standalone`, **Kubernetes** (`kubernetes` as Basic setup, `kubevirt`), `sdk`
 - **Advanced** — `architecture`, `kubernetes-internals`, `fault-tolerance`, `coming-soon`
 - **Other** — `authentication`, `compatibility`, `glossary`
 
