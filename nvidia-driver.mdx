@@ -33,47 +33,77 @@ If the server has Secure Boot enabled, enroll a DKMS signing key in its MOK data
 
 ## Install
 
-Run every command below in order on each GPU server.
+Use the Thunder CLI to do this automatically, or run the same steps by hand.
 
-```bash
-# 1. Remove any NVIDIA driver branch already on the server. Removing
-#    nvidia-persistenced in the same transaction is required: otherwise apt pulls a
-#    replacement libnvidia-cfg1 that collides with the outgoing branch's files.
-sudo apt-get remove -y \
-  '?and(?name(.*nvidia.*[5-9][0-9][0-9].*),?installed)' \
-  '?and(?name(^nvidia-persistenced$),?installed)'
+<Tabs>
+  <Tab title="Thunder CLI">
+    ```bash
+    # 1. Install the Thunder CLI.
+    curl https://get.thundercompute.com/install.sh | sudo sh
 
-# 2. Add NVIDIA's CUDA repository.
-wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
-sudo dpkg -i cuda-keyring_1.1-1_all.deb
-sudo apt-get update
+    # 2. Install the pinned NVIDIA driver and the Thunder patch.
+    sudo thunder ensure-driver
 
-# 3. Pin the driver branch Thunder supports. This must be its own transaction,
-#    because it writes the apt preferences the next step depends on.
-sudo apt-get install -y nvidia-driver-pinning-610.43.02
+    # 3. Reboot to load the patched driver.
+    sudo reboot
+    ```
 
-# 4. Download the Thunder-patched GPU driver package.
-wget https://get.thundercompute.com/thunder-nvidia-dkms-open_610.43.02-3_all.deb
+    `thunder ensure-driver` performs the same work as the manual path: it removes
+    conflicting driver branches, adds NVIDIA's CUDA repository, pins the supported
+    branch, installs `nvidia-driver-open` together with the Thunder patch, holds the
+    patched package, and builds it through DKMS for every installed kernel.
 
-# 5. Install the NVIDIA driver and the Thunder patch together, then hold the
-#    patched package so apt full-upgrade cannot replace it with the stock driver.
-sudo apt-get install -y \
-  nvidia-driver-open \
-  ./thunder-nvidia-dkms-open_610.43.02-3_all.deb
-sudo apt-mark hold thunder-nvidia-dkms-open
+    The command is idempotent. On a server that already runs the right driver it
+    reports that and changes nothing, so it is safe to rerun, including to move to a
+    newer Thunder driver release.
+  </Tab>
 
-# 6. Confirm DKMS built the GPU driver for every installed kernel before rebooting.
-dkms status
+  <Tab title="Manual">
+    Run every command below in order on each GPU server.
 
-# 7. Reboot to load the patched driver.
-sudo reboot
-```
+    ```bash
+    # 1. Remove any NVIDIA driver branch already on the server. Removing
+    #    nvidia-persistenced in the same transaction is required: otherwise apt pulls a
+    #    replacement libnvidia-cfg1 that collides with the outgoing branch's files.
+    sudo apt-get remove -y \
+      '?and(?name(.*nvidia.*[5-9][0-9][0-9].*),?installed)' \
+      '?and(?name(^nvidia-persistenced$),?installed)'
 
-<Note>
-  For other distributions, replace `ubuntu2404` in step 2 with the matching repository name: `ubuntu2204` for Ubuntu 22.04, `debian12` for Debian 12. Everything else is unchanged.
-</Note>
+    # 2. Add NVIDIA's CUDA repository.
+    wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
+    sudo dpkg -i cuda-keyring_1.1-1_all.deb
+    sudo apt-get update
 
-Step 6 should list `nvidia/610.43.02` as `installed` for each kernel in `/boot`. A kernel missing from that output has no NVIDIA driver and will boot without GPU support, so resolve it before rebooting.
+    # 3. Pin the driver branch Thunder supports. This must be its own transaction,
+    #    because it writes the apt preferences the next step depends on.
+    sudo apt-get install -y nvidia-driver-pinning-610.43.02
+
+    # 4. Download the Thunder-patched GPU driver package.
+    wget https://get.thundercompute.com/thunder-nvidia-dkms-open_610.43.02-3_all.deb
+
+    # 5. Install the NVIDIA driver and the Thunder patch together, then hold the
+    #    patched package so apt full-upgrade cannot replace it with the stock driver.
+    sudo apt-get install -y \
+      nvidia-driver-open \
+      ./thunder-nvidia-dkms-open_610.43.02-3_all.deb
+    sudo apt-mark hold thunder-nvidia-dkms-open
+
+    # 6. Confirm DKMS built the GPU driver for every installed kernel before rebooting.
+    dkms status
+
+    # 7. Reboot to load the patched driver.
+    sudo reboot
+    ```
+
+    <Note>
+      For other distributions, replace `ubuntu2404` in step 2 with the matching repository name: `ubuntu2204` for Ubuntu 22.04, `debian12` for Debian 12. Everything else is unchanged.
+    </Note>
+
+    Step 6 should list `nvidia/610.43.02` as `installed` for each kernel in `/boot`. A
+    kernel missing from that output has no NVIDIA driver and will boot without GPU
+    support, so resolve it before rebooting.
+  </Tab>
+</Tabs>
 
 ## Verify
 
@@ -90,7 +120,16 @@ The first command reports `610.43.02`. The second prints the patch ABI version, 
 
 Kernel upgrades need no action. DKMS rebuilds the patched driver for each new kernel automatically, provided `dkms` and the matching headers stay installed. Verify with `dkms status` after a kernel upgrade and before rebooting into it.
 
-To move to a new Thunder driver release, release the hold, then rerun the install steps with the new version:
+To move to a new Thunder driver release on the CLI path, update the CLI, rerun
+`sudo thunder ensure-driver`, and reboot:
+
+```bash
+curl https://get.thundercompute.com/install.sh | sudo sh
+sudo thunder ensure-driver
+sudo reboot
+```
+
+On the manual path, release the hold, then rerun the install steps with the new version:
 
 ```bash
 sudo apt-mark unhold thunder-nvidia-dkms-open
@@ -101,6 +140,9 @@ The pinning package is itself matched by the removal pattern in step 1, so re-ru
 The NVIDIA userspace libraries and the patched GPU driver must always agree. A mismatch either prevents the driver from loading or silently falls back to the stock driver.
 
 ## Troubleshooting
+
+Step numbers below refer to the manual install steps. On the CLI path, rerun
+`sudo thunder ensure-driver` after fixing the underlying cause.
 
 | Symptom | Cause and fix |
 | --- | --- |
