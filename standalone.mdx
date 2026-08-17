@@ -1,0 +1,132 @@
+---
+title: "Standalone"
+description: "Install Thunder directly on GPU servers and client machines."
+icon: "server"
+iconType: "solid"
+---
+
+A standalone install puts Thunder directly on the machine: `thunderd` runs as a
+systemd service on each GPU server, and `libthunder` is preloaded on each client. Use
+it on any machine you administer directly, with nothing else managing the node.
+
+Set up servers first. A client can only be enrolled into a zone that already has GPU
+capacity in it.
+
+Before you start, review the [requirements](/requirements) for both roles, and install
+the Thunder-patched NVIDIA GPU driver on every GPU server as described in
+[NVIDIA driver setup](/nvidia-driver).
+
+## Servers
+
+### Install
+
+SSH into the server and run the installer, which places the `thunder` CLI and the
+Thunder binaries on the machine:
+
+```bash
+curl -fsSL https://get.thundercompute.com/install.sh | sudo sh
+```
+
+### Register the server
+
+Start the setup process:
+
+```bash
+sudo thunder up
+```
+
+The command prints an authorization link. Open it in your browser and sign in. From
+there you choose the zone this server joins, creating one if you do not have a zone
+yet, along with the IP address the server advertises to the rest of the zone.
+
+<Note>
+  The IP you choose must be reachable by every other server and client in the zone.
+  See [Architecture](/architecture) for why.
+</Note>
+
+Once authorized, `thunderd` runs as a systemd service and the server appears as active
+in the dashboard.
+
+### Check the server
+
+```bash
+sudo thunder status
+```
+
+If the output reports an issue, follow the **Next** action it prints. Run
+`sudo thunder update` if it reports missing or outdated binaries.
+
+You do not need to set `THUNDER_API_TOKEN` to register a server. That token is the
+management API credential used by trusted automation, and the server installer does
+not accept it.
+
+## Clients
+
+A client is a machine, VM, or container that runs CUDA workloads using GPUs from
+servers in the same zone. It does not need a local GPU.
+
+### Create an enrollment token
+
+In [app.thundercompute.com](https://app.thundercompute.com/), open the **Zones** tab
+and select the zone holding the GPU servers this client should use. Select **Create
+enrollment token**, then:
+
+1. Choose the **Client** role.
+2. Select the GPU type and number of GPUs the client should receive.
+3. Create the token and copy it.
+
+The token begins with `tr_`, is shown once, and enrolls exactly one client. The GPU
+type and count you picked become that client's entitlement.
+
+### Install
+
+Run the installer on the client machine with the token from the previous step:
+
+```bash
+curl -fsSL https://get.thundercompute.com/install.sh | \
+  sudo THUNDER_NOWARN=1 \
+  THUNDER_INSTALL_MODE=client \
+  THUNDER_ENROLLMENT_TOKEN=$THUNDER_ENROLLMENT_TOKEN \
+  sh
+```
+
+`THUNDER_NOWARN=1` skips interactive confirmation; omit it to confirm the
+installation manually.
+
+The installer downloads and verifies `libthunder`, redeems the enrollment token, and
+writes the client credentials and GPU entitlement to `/etc/thunder/config.json`.
+
+The token is consumed during installation. If installation fails before the client is
+configured, create a new token before retrying.
+
+### Verify
+
+The enrolled client appears under **Zones → Clients** in
+[app.thundercompute.com](https://app.thundercompute.com/), which confirms enrollment
+succeeded.
+
+On the client, run:
+
+```bash
+nvidia-smi
+```
+
+The command should show the GPUs assigned to the client. You can then run a
+representative CUDA workload to confirm it uses the expected GPU type and count.
+
+## Uninstalling
+
+The same uninstaller removes Thunder from a server or a client:
+
+```bash
+sudo /usr/local/bin/uninstall-thunder.sh
+```
+
+It revokes the machine's credential, then removes the preload entry, the `thunderd`
+systemd unit, and every Thunder binary, config, state, and cache file. Nothing else
+is required to take the machine out of the fleet.
+
+<Warning>
+  Move active workloads off the machine first. Any running Thunder GPU processes are
+  force-killed, and clients using this server lose GPU access.
+</Warning>

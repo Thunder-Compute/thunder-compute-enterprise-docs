@@ -11,12 +11,14 @@ npm install
 npx mintlify dev
 ```
 
-The documentation includes:
+## Structure
 
-- Overview
-- Installation for Kubernetes and normal deployments
-- Architecture and components
-- Compatibility and performance considerations
+Navigation is defined in `docs.json`.
+
+- **Getting Started** — `overview`, `requirements`, `nvidia-driver`
+- **Installation** — `standalone`, **Kubernetes** (group root `kubernetes`, child `kubevirt`), `sdk`
+- **Advanced** — `architecture`, `kubernetes-internals`, `fault-tolerance`, `coming-soon`
+- **Other** — `authentication`, `compatibility`, `glossary`
 
 Documentation images live in `/images` and are referenced from MDX with
 root-absolute paths such as `/images/gpu-oversubscription.png`.

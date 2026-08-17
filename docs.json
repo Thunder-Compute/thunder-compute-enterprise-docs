@@ -11,8 +11,45 @@
   "navigation": {
     "groups": [
       {
-        "group": "Documentation",
-        "pages": ["overview", "installation", "architecture", "compatibility"]
+        "group": "Getting Started",
+        "pages": [
+          "overview",
+          "requirements",
+          "nvidia-driver"
+        ]
+      },
+      {
+        "group": "Installation",
+        "pages": [
+          "standalone",
+          {
+            "group": "Kubernetes",
+            "icon": "dharmachakra",
+            "root": "kubernetes",
+            "expanded": true,
+            "pages": [
+              "kubevirt"
+            ]
+          },
+          "sdk"
+        ]
+      },
+      {
+        "group": "Advanced",
+        "pages": [
+          "architecture",
+          "kubernetes-internals",
+          "fault-tolerance",
+          "coming-soon"
+        ]
+      },
+      {
+        "group": "Other",
+        "pages": [
+          "authentication",
+          "compatibility",
+          "glossary"
+        ]
       }
     ],
     "global": {
@@ -62,13 +99,38 @@
     }
   },
   "contextual": {
-    "options": ["copy", "view", "claude", "chatgpt"],
+    "options": [
+      "copy",
+      "view",
+      "claude",
+      "chatgpt"
+    ],
     "display": "header"
   },
   "redirects": [
     {
       "source": "/",
       "destination": "/overview"
+    },
+    {
+      "source": "/installation",
+      "destination": "/standalone"
+    },
+    {
+      "source": "/hosts",
+      "destination": "/standalone"
+    },
+    {
+      "source": "/servers",
+      "destination": "/standalone"
+    },
+    {
+      "source": "/clients",
+      "destination": "/standalone"
+    },
+    {
+      "source": "/custom",
+      "destination": "/sdk"
     }
   ]
 }

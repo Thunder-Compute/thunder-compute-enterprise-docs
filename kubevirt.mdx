@@ -1,0 +1,111 @@
+---
+title: "KubeVirt"
+description: "Give KubeVirt virtual machines Thunder GPUs through Dynamic Resource Allocation."
+icon: "desktop"
+iconType: "solid"
+---
+
+KubeVirt VMs receive Thunder GPUs the same way pods do, through Dynamic Resource
+Allocation.
+
+A VM declares a `ResourceClaim` with a name you choose. When the VM starts, Thunder
+writes a Secret named after that claim, holding an enrollment token and a setup
+script. The VM mounts it over virtiofs, and cloud-init runs the script to install the
+Thunder client into the guest. From there the guest reaches its GPU over the network,
+so the VM declares no GPU device.
+
+<Note>
+  This page assumes a working Thunder installation on the cluster. Complete
+  [Kubernetes](/kubernetes) first: node labels and chart deployment are shared, and
+  are not repeated here.
+</Note>
+
+## Requesting GPUs from a VM
+
+The claim needs a name you choose, because the VM mounts the Secret Thunder derives
+from it and a manifest has to name that Secret up front.
+
+```text
+<claim-name>-thunder-setup   # enrollment-token, install-thunder-client.sh
+```
+
+<Note>
+  A VM claim cannot use the `resources.limits` form: the artifact names come from the
+  claim name, so the claim has to exist before the VM does.
+</Note>
+
+Create the VM claim. `count` is the number of GPUs, and the `DeviceClass` names the
+model (see [Naming a GPU type](/kubernetes#naming-a-gpu-type)):
+
+```yaml
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaim
+metadata:
+  name: thunder-vm-claim
+spec:
+  devices:
+    requests:
+      - name: gpu
+        exactly:
+          deviceClassName: thunder-gpu-a6000   # the class pins the model
+          allocationMode: ExactCount
+          count: 1                             # one device per GPU
+```
+
+Reference the claim from the VM and mount the Thunder guest artifacts with
+virtiofs:
+
+```yaml
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  name: thunder-vm
+spec:
+  running: true
+  template:
+    spec:
+      resourceClaims:
+        - name: gpu
+          resourceClaimName: thunder-vm-claim
+      domain:
+        resources:
+          requests:
+            memory: 1Gi
+        devices:
+          filesystems:
+            - name: thunder-setup
+              virtiofs: {}
+          disks:
+            - name: cloudinitdisk
+              disk:
+                bus: virtio
+      volumes:
+        - name: thunder-setup
+          secret:
+            secretName: thunder-vm-claim-thunder-setup
+            optional: true
+        - name: cloudinitdisk
+          cloudInitNoCloud:
+            userData: |
+              #cloud-config
+              mounts:
+                - [ thunder-setup, /mnt/thunder-setup, virtiofs ]
+              runcmd:
+                - [ bash, /mnt/thunder-setup/install-thunder-client.sh ]
+```
+
+Use the test chart for a complete VM with root disk and networking:
+
+```bash
+helm install thunder-vm charts/tests/vm \
+  --set gpu.type=A6000 \
+  --set gpu.count=1
+```
+
+Inspect the VM and its generated Thunder artifacts:
+
+```bash
+kubectl get vm,vmi,pod -l app.kubernetes.io/instance=thunder-vm
+kubectl get resourceclaim thunder-vm-thunder-gpu-test-vm-claim -o yaml
+kubectl get cm,secret | grep thunder-vm-thunder-gpu-test-vm-claim
+```
