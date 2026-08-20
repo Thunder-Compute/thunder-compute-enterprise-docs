@@ -47,6 +47,27 @@ yet, along with the IP address the server advertises to the rest of the zone.
 Once authorized, `thunderd` runs as a systemd service and the server appears as active
 in the dashboard.
 
+### Cordon a server
+
+To keep a server from receiving **new** GPU work while leaving its existing work
+alone, open **Nodes** in the dashboard, choose the server, and select **Cordon**.
+Enter a reason so the operator record explains why it was held out of rotation.
+The setting is delivered with the zone roster and normally takes effect within about
+one Central check-in. It also works for a server that is currently offline.
+
+Cordon is not a drain or a shutdown: it does not move, stop, or disconnect running
+workloads. When the server is ready to receive work again, select **Uncordon**.
+
+Each server has one cordon record. Cordoning an already-cordoned server replaces its
+record with the latest operator and reason, and any authorized operator can uncordon
+it. Before clearing another operator's cordon, the dashboard shows who set it and why.
+The record follows the server hostname, so it survives a fresh enrollment, but
+changing the hostname leaves the old record behind and requires a new cordon decision.
+
+Dashboard cordon and uncordon changes are added to the audit log on a best-effort
+basis. The configuration itself remains the source of truth even if audit capture is
+temporarily unavailable.
+
 ### Check the server
 
 ```bash
