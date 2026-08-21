@@ -1,20 +1,20 @@
 ---
 title: "Oversubscribe your GPU fleet"
 sidebarTitle: "Overview"
-description: "Thunder Compute’s virtualization turns predictable underutilization into available GPU capacity."
+description: "Thunder’s virtualization turns predictable underutilization into available GPU capacity."
 icon: "house"
 iconType: "solid"
 ---
 
-Thunder Compute’s virtualization oversubscribes a cluster of GPUs by turning underutilization into available capacity. Today, a substantial portion of data center GPU capacity sits idle because GPUs remain allocated to specific workloads even when those workloads are not using them.
+Thunder’s virtualization oversubscribes a cluster of GPUs by turning underutilization into available capacity. Today, a substantial portion of data center GPU capacity sits idle because GPUs remain allocated to specific workloads even when those workloads are not using them.
 
-Thunder Compute decouples GPUs from individual workloads, making idle GPU capacity available to other workloads within a data center. With GPUs, usage is highly predictable and utilization is low, often allowing oversubscription by `1.5x` or more.
+Thunder decouples GPUs from individual workloads, making idle GPU capacity available to other workloads within a data center. With GPUs, usage is highly predictable and utilization is low, often allowing oversubscription by `1.5x` or more.
 
 <Frame caption="Fig. 1. More workloads are served by the same GPUs.">
-  ![Dedicated GPU allocation compared with Thunder Compute oversubscription](/images/gpu-oversubscription.png)
+  ![Dedicated GPU allocation compared with Thunder oversubscription](/images/gpu-oversubscription.png)
 </Frame>
 
-To enable this, we use a proprietary library to dynamically provide GPU access across a data center’s network fabric. When a workload starts to use an H100, the Thunder Compute software typically finds an idle H100 and establishes a peer-to-peer connection within `50-100 ms`, forwarding CUDA calls to that GPU. Once the workload finishes using CUDA, that GPU can be reassigned elsewhere.
+To enable this, we use a proprietary library to dynamically provide GPU access across a data center’s network fabric. When a workload starts to use an H100, the Thunder software typically finds an idle H100 and establishes a peer-to-peer connection within `50-100 ms`, forwarding CUDA calls to that GPU. Once the workload finishes using CUDA, that GPU can be reassigned elsewhere.
 
 <Frame caption="Fig. 2. Workloads are sent to available GPUs dynamically.">
   <img
